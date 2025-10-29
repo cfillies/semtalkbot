@@ -1,0 +1,93 @@
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+type DiscoveredTool = {
+  name: string;
+  description?: string;
+  method?: string;
+  path?: string;
+};
+
+async function tryGet(url: string) {
+  const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`GET ${url} returned ${res.status}`);
+  return res.json();
+}
+
+async function tryPost(url: string, body: any) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`POST ${url} returned ${res.status}`);
+  return res.json();
+}
+
+export async function discoverMcpTools(): Promise<any[]> {
+  const base = process.env.MCP_URL?.replace(/\/+$/, "") ?? "https://semaiservice.azurewebsites.net/runtime/webhooks/mcp";
+  const candidatePaths = ["/tools", "/discover", "/.well-known/mcp-tools", ""]; // "" will try base itself
+  let discovered: DiscoveredTool[] | null = null;
+
+  for (const p of candidatePaths) {
+    const url = base + (p && !p.startsWith("/") ? `/${p}` : p);
+    try {
+      const body = await tryGet(url);
+      if (Array.isArray(body)) {
+        discovered = body;
+        break;
+      }
+    } catch {
+      // ignore and try next
+    }
+  }
+
+  if (!discovered) {
+    // try POST discovery to base
+    try {
+      const body = await tryPost(base, { action: "list_tools" });
+      if (Array.isArray(body)) discovered = body;
+    } catch {
+      // no discovery available
+    }
+  }
+
+  if (!discovered) return [];
+
+  // Convert discovered definitions to LangChain tools
+  const mcpApiKey = process.env.MCP_API_KEY;
+  return discovered.map((d) => {
+    const toolName = d.name;
+    const description = d.description ?? `Proxy to MCP tool ${toolName}`;
+    const method = (d.method || "POST").toUpperCase();
+    const path = d.path ?? "";
+
+    const generated = tool(
+      async (input: any) => {
+        const url = base + (path ? (path.startsWith("/") ? path : `/${path}`) : "");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (mcpApiKey) headers.Authorization = `Bearer ${mcpApiKey}`;
+
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: method === "GET" ? undefined : JSON.stringify({ input }),
+        });
+
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      },
+      {
+        name: toolName,
+        description,
+        schema: z.any().optional(),
+      }
+    );
+
+    return generated;
+  });
+}

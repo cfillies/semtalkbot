@@ -1,0 +1,71 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.23/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.23",
+    "version": "1.0.1",
+    "id": "${{TEAMS_APP_ID}}",
+    "developer": {
+        "name": "Semtation GmbH",
+        "websiteUrl": "https://www.semtalk.com",
+        "privacyUrl": "https://www.semtalk.com/privacy",
+        "termsOfUseUrl": "https://www.semtalk.com/termofuse"
+    },
+    "icons": {
+        "color": "color.png",
+        "outline": "outline.png"
+    },
+    "name": {
+        "short": "semtalkbot${{APP_NAME_SUFFIX}}",
+        "full": "full name for semtalkbot"
+    },
+    "description": {
+        "short": "short description for semtalkbot",
+        "full": "full description for semtalkbot"
+    },
+    "accentColor": "#FFFFFF",
+    "copilotAgents": {
+        "customEngineAgents": [
+            {
+                "type": "bot",
+                "id": "${{BOT_ID}}"
+            }
+        ]
+    },
+    "bots": [
+        {
+            "botId": "${{BOT_ID}}",
+            "scopes": [
+                "copilot",
+                "personal",
+                "team"
+            ],
+            "supportsFiles": false,
+            "isNotificationOnly": false,
+            "commandLists": [
+                {
+                    "scopes": [
+                        "copilot",
+                        "personal"
+                    ],
+                    "commands": [
+                        {
+                            "title": "Find business processes in our repository",
+                            "description": "Return a list of Process descriptions for a matching a Process name"
+                        },
+                        {
+                            "title": "Explain a business process",
+                            "description": "Return a BPMN Style Process description for a matching a Process name"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "composeExtensions": [],
+    "configurableTabs": [],
+    "staticTabs": [],
+    "permissions": [
+        "identity",
+        "messageTeamMembers"
+    ],
+    "validDomains": []
+}
