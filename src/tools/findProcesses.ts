@@ -12,7 +12,7 @@ export const findProcesses = tool(
     let url = service + "api/findprocessWS";
     let js = {
       "name": name,
-      "model": model
+      "model": "*"
     };
     let c = {
       "headers": {

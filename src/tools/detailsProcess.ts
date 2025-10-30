@@ -12,7 +12,7 @@ export const detailsProcess = tool(
     let url = service + "api/detailsprocessWS";
     let js = {
       "name": name,
-      "model": model
+      "model": "*"
     };
     let c = {
       "headers": {
