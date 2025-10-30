@@ -24,14 +24,14 @@ export const findProcesses = tool(
     try {
       let res = await axios.post(url, js, c
       );
-      if ((res.status === 201 || res.status === 200) && res.data && res.data.length > 0) {
-        return res.data;
+      if ((res.status === 201 || res.status === 200) && res.data && res.data.body && res.data.body.result) {
+        return res.data.body.result;
       } else {
         console.log("findProcesses: " + res.statusText);
-        return res.statusText;
+        return [];
       }
     } catch (e) {
-      console.log("askchat: " + e);
+      console.log("findProcesses: " + e);
       return (e as any).message;
     }
 

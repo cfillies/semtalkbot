@@ -13,13 +13,13 @@
         "color": "color.png",
         "outline": "outline.png"
     },
-    "name": {
-        "short": "semtalkbot${{APP_NAME_SUFFIX}}",
-        "full": "full name for semtalkbot"
+   "name": {
+        "short": "SemTalk Process Bot",
+        "full": "SemTalk Process Finder Bot"
     },
     "description": {
-        "short": "short description for semtalkbot",
-        "full": "full description for semtalkbot"
+        "short": "Make your business processes accessible via chat",
+        "full": "The SemTalk Process Bot helps you find and understand business processes stored in your SemTalk Process Repository directly from Microsoft Teams."
     },
     "accentColor": "#FFFFFF",
     "copilotAgents": {
