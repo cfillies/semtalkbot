@@ -36,7 +36,8 @@
             "scopes": [
                 "copilot",
                 "personal",
-                "team"
+                "team",
+                "groupChat"
             ],
             "supportsFiles": false,
             "isNotificationOnly": false,
