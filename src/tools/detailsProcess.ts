@@ -9,6 +9,8 @@ export const detailsProcess = tool(
     if (!service) {
       service = "https://semaiservice.azurewebsites.net/";
     }
+    // service = "http://localhost:7073/";
+
     let url = service + "api/detailsprocessWS";
     let js = {
       "name": name,
@@ -24,8 +26,8 @@ export const detailsProcess = tool(
     try {
       let res = await axios.post(url, js, c
       );
-      if ((res.status === 201 || res.status === 200) && res.data && res.data.length > 0) {
-        return res.data;
+      if ((res.status === 201 || res.status === 200) && res.data && res.data.body && res.data.body.result) {
+        return JSON.stringify(res.data.body.result);
       } else {
         console.log("detailsProcess: " + res.statusText);
         return res.statusText;

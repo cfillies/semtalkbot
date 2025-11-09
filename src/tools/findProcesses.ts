@@ -9,6 +9,8 @@ export const findProcesses = tool(
     if (!service) {
       service = "https://semaiservice.azurewebsites.net/";
     }
+    // service = "http://localhost:7073/";
+ 
     let url = service + "api/findprocessWS";
     let js = {
       "name": name,
@@ -25,7 +27,7 @@ export const findProcesses = tool(
       let res = await axios.post(url, js, c
       );
       if ((res.status === 201 || res.status === 200) && res.data && res.data.body && res.data.body.result) {
-        return res.data.body.result;
+        return JSON.stringify(res.data.body.result);
       } else {
         console.log("findProcesses: " + res.statusText);
         return [];
