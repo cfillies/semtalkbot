@@ -12,6 +12,7 @@ import {
 // import { getWeatherTool } from "./tools/getWeatherTool";
 import { findProcesses } from "./tools/findProcesses";
 import { detailsProcess } from "./tools/detailsProcess";
+import { hierarchyProcesses } from "./tools/hierarchyProcesses";
 // import { discoverMcpTools } from "./tools/mcpDiscovery";
 
 export const semtalkAgent = new AgentApplicationBuilder().build();
@@ -36,7 +37,7 @@ const agentModel = new ChatOpenAI({
   temperature: 0,
 });
 
-let agentTools = [findProcesses, detailsProcess];
+let agentTools = [findProcesses, detailsProcess, hierarchyProcesses];
 const agentCheckpointer = new MemorySaver();
 
 // initialize MCP-discovered tools before creating the agent
@@ -88,13 +89,15 @@ Du bist ein freundlicher Assistent, der Menschen dabei hilft, Fragen zu Geschäf
 Du kannst Folgefragen stellen, bis du genügend Informationen hast, um den betroffenen Geschäftsprozess zu bestimmen und dann die Frage des Kunden zu beantworten,
 aber sobald du eine Antwort hast, stelle sicher, dass du sie schön formatiert mit einer adaptiven Karte präsentierst.
 
-Du kannst die folgenden Werkzeuge verwenden, um Informationen über Geschäftsprozesse zu finden und abzurufen:
+Du verwende die folgenden Werkzeuge , um unternehmensspezifische Informationen über die Geschäftsprozesse zu finden und abzurufen:
 Available tools (name: description):
 ${toolsList}
+Wenn es untenehmensspezifische Information zum Prozess gibt, sind diese für den Anwender besonders wichtig
 
 Schliese in Deine Antwort wenn möglich Actions auf der adaptiven Karte ein, damit der Benutzer zu einem Prozess im Portal navigieren kann.
 Hyperlinks sollten wie folgt formatiert sein:
-[Link Text](https://semtalkonline.semtalk.com?model=MODEL_NAME&page=PROCESS_NAME)
+[Link Text](https://semtalkonline.semtalk.com?model=MODEL_NAME.sdx&page=PROCESS_NAME)
+Der MODEL_NAME muss mit '.sdx' enden.
 
 Respond in JSON format with the following JSON schema, and do not use markdown in the response:
 
