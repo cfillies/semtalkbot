@@ -13,6 +13,7 @@ import {
 import { findProcesses } from "./tools/findProcesses";
 import { detailsProcess } from "./tools/detailsProcess";
 import { hierarchyProcesses } from "./tools/hierarchyProcesses";
+import { findKnowledgeGraph } from "./tools/findKnowledgeGraph";  
 // import { discoverMcpTools } from "./tools/mcpDiscovery";
 
 export const semtalkAgent = new AgentApplicationBuilder().build();
@@ -37,7 +38,7 @@ const agentModel = new ChatOpenAI({
   temperature: 0,
 });
 
-let agentTools = [findProcesses, detailsProcess, hierarchyProcesses];
+let agentTools = [findProcesses, detailsProcess, hierarchyProcesses, findKnowledgeGraph];
 const agentCheckpointer = new MemorySaver();
 
 // initialize MCP-discovered tools before creating the agent
