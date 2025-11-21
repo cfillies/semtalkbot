@@ -13,7 +13,7 @@ import {
 import { findProcesses } from "./tools/findProcesses";
 import { detailsProcess } from "./tools/detailsProcess";
 import { hierarchyProcesses } from "./tools/hierarchyProcesses";
-import { findKnowledgeGraph } from "./tools/findKnowledgeGraph";  
+import { findKnowledgeGraph } from "./tools/findKnowledgeGraph";
 // import { discoverMcpTools } from "./tools/mcpDiscovery";
 
 export const semtalkAgent = new AgentApplicationBuilder().build();
@@ -125,7 +125,7 @@ semtalkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
 
   let llmResponseContent: SemTalkProcessAgentResponse;
 
-  if (content.startsWith("{") && content.endsWith("}")) {
+  if ((content.startsWith("{") && content.endsWith("}")) || (content.startsWith("[") && content.endsWith("]"))) {
     try {
       const parsed = JSON.parse(content);
       // Check if this is our expected response format
