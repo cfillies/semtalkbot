@@ -7,7 +7,7 @@ export const hierarchyProcesses = tool(
     console.log("************Finding Process Hierarchy", name, model);
     let service = process.env.SEMTALK_AISERVICE_URL;
     if (!service) {
-      service = "https://semaiservice.azurewebsites.net/";
+      service = "https://semaiservice26.azurewebsites.net/";
     }
     // service = "http://localhost:7073/";
 
