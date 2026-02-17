@@ -7,7 +7,7 @@ export const findProcesses = tool(
     console.log("************Finding Processes named", name, model);
     let service = process.env.SEMTALK_AISERVICE_URL;
     if (!service) {
-      service = "https://semaiservice.azurewebsites.net/";
+      service = "https://semaiservice26.azurewebsites.net/";
     }
     // service = "http://localhost:7073/";
  

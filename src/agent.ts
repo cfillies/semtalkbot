@@ -27,14 +27,14 @@ semtalkAgent.onConversationUpdate(
   }
 );
 
-interface SemTalkProcessAgentResponse {
+interface AgentResponse {
   contentType: "Text" | "AdaptiveCard";
   content: string;
 }
 
 const agentModel = new ChatOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  model: "gpt-4o-mini",
+  model: "gpt-4.1-mini",
   temperature: 0,
 });
 
@@ -57,7 +57,7 @@ const agentCheckpointer = new MemorySaver();
   // }));
   // } catch (e) {
   //   console.warn("Failed to discover MCP tools:", e);
-  (global as any).__weather_agent_tools_info = agentTools.map((t: any) => ({
+  (global as any).__semtalk_agent_tools_info = agentTools.map((t: any) => ({
     name: t.name,
     description: t.description ?? "No description provided",
   }));
@@ -81,7 +81,7 @@ function getAgentInstance() {
 
 // build a system message that includes discovered tool names & descriptions
 function buildSystemMessage(): SystemMessage {
-  const tools: { name: string; description: string }[] = (global as any).__weather_agent_tools_info || [];
+  const tools: { name: string; description: string }[] = (global as any).__semtalk_agent_tools_info || [];
   const toolsList = tools.length
     ? tools.map((t) => `- ${t.name}: ${t.description}`).join("\n")
     : "- (no external tools registered)";
@@ -111,10 +111,13 @@ Respond in JSON format with the following JSON schema, and do not use markdown i
 semtalkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
   const agentInstance = getAgentInstance();
   const sysMessage = buildSystemMessage();
-
+  // const humMessage = new HumanMessage({ content: context.activity.text!,
+  //   name: context.activity.from.name
+  // });
+  const humMessage = new HumanMessage(context.activity.text!);
   const llmResponse = await agentInstance.invoke(
     {
-      messages: [sysMessage, new HumanMessage(context.activity.text!)],
+      messages: [sysMessage, humMessage],
     },
     {
       configurable: { thread_id: context.activity.conversation!.id },
@@ -123,7 +126,7 @@ semtalkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
   );
   let content: string = llmResponse.messages[llmResponse.messages.length - 1].content as string;
 
-  let llmResponseContent: SemTalkProcessAgentResponse;
+  let llmResponseContent: AgentResponse;
 
   if (content.startsWith("{") && content.endsWith("}")) {
     try {
@@ -145,24 +148,6 @@ semtalkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
   } else {
     llmResponseContent = { contentType: "Text", content: content };
   }
-  // const tools: any = {};
-  // let mlen = llmResponse.messages.length;
-  // for (let i = mlen - 1; i >= 0; i--) {
-  //   let msg = llmResponse.messages[i];
-  //   if (msg.name && msg.content) {
-  //     switch (msg.name) {
-  //       case "FindProcesses": {
-  //         tools[msg.name] = JSON.parse(msg.content);
-  //         break;
-  //       }
-  //       case "detailsProcess":
-  //         tools[msg.name] = JSON.parse(msg.content).processes;
-  //         break;
-  //       default:
-  //         continue;
-  //     }
-  //   }
-  // }
 
 
 
