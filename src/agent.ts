@@ -100,11 +100,21 @@ Hyperlinks sollten wie folgt formatiert sein:
 [Link Text](https://semtalkonline.semtalk.com?model=MODEL_NAME.sdx&page=PROCESS_NAME)
 Der MODEL_NAME muss mit '.sdx' enden.
 
-Respond in JSON format with the following JSON schema, and do not use markdown in the response:
+Use Adaptive Cards or MarkDown to format your response.
+Only one single answer. Do not mix MarkDown and AdaptiveCards.
+
+Respond in JSON format with the following JSON schema:
+{
+    "contentType": "AdaptiveCard",
+    "content": {The content of the response as JSON based adaptive card}
+}
+
+OR 
 
 {
-    "contentType": "'Text' or 'AdaptiveCard' only",
-    "content": "{The content of the response, may be plain text, or JSON based adaptive card}"
+    "contentType": "Text",
+    "content": "The content of the response as markdown"
+}
 `);
 }
 
