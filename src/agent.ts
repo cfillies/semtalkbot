@@ -57,7 +57,7 @@ const agentCheckpointer = new MemorySaver();
   // }));
   // } catch (e) {
   //   console.warn("Failed to discover MCP tools:", e);
-  (global as any).__weather_agent_tools_info = agentTools.map((t: any) => ({
+  (global as any)._tools_info = agentTools.map((t: any) => ({
     name: t.name,
     description: t.description ?? "No description provided",
   }));
@@ -81,7 +81,7 @@ function getAgentInstance() {
 
 // build a system message that includes discovered tool names & descriptions
 function buildSystemMessage(): SystemMessage {
-  const tools: { name: string; description: string }[] = (global as any).__weather_agent_tools_info || [];
+  const tools: { name: string; description: string }[] = (global as any)._tools_info || [];
   const toolsList = tools.length
     ? tools.map((t) => `- ${t.name}: ${t.description}`).join("\n")
     : "- (no external tools registered)";
