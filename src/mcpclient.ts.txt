@@ -1,0 +1,60 @@
+// client.ts
+
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+
+import { StreamableHTTPClientTransport }
+  from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+export async function gettoolsandprompts(): Promise<{ tools: any[],
+    prompts: any[],
+    resources: any[],
+    listResourceTemplates: any[]
+  }> {
+
+  // const jwtToken = process.env.JWT_TOKEN || "m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==";
+ const url = "https://semaiservice26.azurewebsites.net/runtime/webhooks/mcp?code=m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==";
+//  const url = "http://localhost:707/runtime/webhooks/mcp?code=m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==";
+ 
+  const transport = new StreamableHTTPClientTransport(
+    new URL(url)
+  );
+
+  const client = new Client(
+    {
+      name: "semtalk-agent",
+      version: "1.0.0",
+    }
+  );
+
+  await client.connect(transport);
+
+  console.log("Connected.");
+
+  // List tools
+  const tools = await client.listTools();
+  const prompts = await client.listPrompts();
+  const resources = await client.listResources();
+  const listResourceTemplates = await client.listResourceTemplates();
+
+  return { tools: tools.content as any[],
+    prompts: prompts.content as any[],
+    resources: resources.content as any[],
+    listResourceTemplates: listResourceTemplates.content as any[]
+  }
+
+  // console.log(JSON.stringify(tools, null, 2));
+
+  // try {
+  //   // Call tool
+  //   const result = await client.callTool({
+  //     name: "findProcesses",
+  //     arguments: {
+  //       name: "Demo",
+  //     },
+  //   });
+
+  //   console.log(result);
+  // } catch (e) {
+  //   console.log(e);
+  // }
+}

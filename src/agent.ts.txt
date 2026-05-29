@@ -1,24 +1,23 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { AzureChatOpenAI, ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import { ActivityTypes } from "@microsoft/agents-activity";
 import {
   AgentApplicationBuilder,
   MessageFactory,
   TurnContext,
 } from "@microsoft/agents-hosting";
-// import { dateTool } from "./tools/dateTimeTool";
-// import { getWeatherTool } from "./tools/getWeatherTool";
 import { findProcesses } from "./tools/findProcesses";
 import { detailsProcess } from "./tools/detailsProcess";
 import { hierarchyProcesses } from "./tools/hierarchyProcesses";
 import { findKnowledgeGraph } from "./tools/findKnowledgeGraph";
+import { gettoolsandprompts } from "./mcpclient";
 // import { discoverMcpTools } from "./tools/mcpDiscovery";
 
-export const semtalkAgent = new AgentApplicationBuilder().build();
+export const botframeworkAgent = new AgentApplicationBuilder().build();
 
-semtalkAgent.onConversationUpdate(
+botframeworkAgent.onConversationUpdate(
   "membersAdded",
   async (context: TurnContext) => {
     await context.sendActivity(
@@ -42,7 +41,7 @@ let agentTools = [findProcesses, detailsProcess, hierarchyProcesses, findKnowled
 const agentCheckpointer = new MemorySaver();
 
 // initialize MCP-discovered tools before creating the agent
-(async () => {
+async function startupBotDependencies() {
   // try {
   // const mcpTools = await discoverMcpTools();
   // if (mcpTools.length) {
@@ -57,10 +56,22 @@ const agentCheckpointer = new MemorySaver();
   // }));
   // } catch (e) {
   //   console.warn("Failed to discover MCP tools:", e);
-  (global as any)._tools_info = agentTools.map((t: any) => ({
-    name: t.name,
-    description: t.description ?? "No description provided",
-  }));
+  let mcpTools = await gettoolsandprompts();
+  // console.debug(mcpTools);
+
+  if (mcpTools && mcpTools.tools) {
+    (global as any)._tools_info = mcpTools.tools.map((t: any) => ({
+      name: t.name,
+      description: t.description ?? "No description provided",
+    }));
+
+  } else {
+    (global as any)._tools_info = agentTools.map((t: any) => ({
+      name: t.name,
+      description: t.description ?? "No description provided",
+    }));
+  }
+
   // }
 
   // create agent after discovery
@@ -72,12 +83,14 @@ const agentCheckpointer = new MemorySaver();
 
   // attach to module-level scope so the rest of this file can use it (the onActivity below uses `agent`)
   (global as any).__semtalk_agent_instance = agent;
-})();
+  return agent;
+}
 
 // helper to get the created agent instance inside handlers
 function getAgentInstance() {
   return (global as any).__semtalk_agent_instance;
 }
+
 
 // build a system message that includes discovered tool names & descriptions
 function buildSystemMessage(): SystemMessage {
@@ -118,7 +131,7 @@ OR
 `);
 }
 
-semtalkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
+botframeworkAgent.onActivity(ActivityTypes.Message, async (context, state) => {
   const agentInstance = getAgentInstance();
   const sysMessage = buildSystemMessage();
 
