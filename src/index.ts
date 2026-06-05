@@ -3,9 +3,9 @@ import { createAgent } from "./agents/createAgent";
 import { buildSystemPrompt } from "./agents/systemPrompt";
 import { createBot } from "./bot/bot";
 import { getTools } from "./mcp/mcpToolsAdapter";
+import { startServer } from "@microsoft/agents-hosting-express";
 
 import { AgentApplicationBuilder } from "@microsoft/agents-hosting";
-
 async function main() {
 
   // 1. BOOTSTRAP MCP FIRST
@@ -20,7 +20,6 @@ async function main() {
   // 4. BOT WRAPPER
   const botHandler = createBot(agent, systemPrompt);
 
-  // 5. REGISTER BOT
   const app = new AgentApplicationBuilder().build();
 
   app.onActivity("message", botHandler);
@@ -28,6 +27,8 @@ async function main() {
   app.onConversationUpdate("membersAdded", async (ctx) => {
     await ctx.sendActivity("Hello 👋");
   });
+
+  startServer(app);
 
   console.log("[BOT] ready");
 }

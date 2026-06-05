@@ -7,9 +7,13 @@ export async function initMcpClient() {
 
   if (client) return client;
 
-  // const url = process.env.MCP_URL!;
-  const url = "https://semaiservice26.azurewebsites.net/runtime/webhooks/mcp?code=_m6Uw9BvzgbI0if-2x___Yp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==";
-  //  const url = "http://localhost:707/runtime/webhooks/mcp?code=_m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==";
+  const url = process.env.MCP_URL;
+  
+  if (!url) {
+    throw new Error(
+      "MCP_URL environment variable not set. Configure it in .localConfigs or your environment."
+    );
+  }
 
   const transport = new StreamableHTTPClientTransport(
     new URL(url)
