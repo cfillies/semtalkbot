@@ -51,7 +51,8 @@ function flattenPrompt(
 
 export function buildRuntimePrompt(
   mcpPrompt: any,
-  tools: any[]
+  tools: any[],
+  fallbackPrompt?: string
 ) {
 
   // ----------------------------------
@@ -67,8 +68,13 @@ export function buildRuntimePrompt(
       "[PROMPT] using default fallback prompt"
     );
 
-    basePrompt =
-      DEFAULT_SYSTEM_PROMPT;
+    basePrompt = DEFAULT_SYSTEM_PROMPT;
+  }
+
+  if (fallbackPrompt?.trim()) {
+    basePrompt = `${fallbackPrompt.trim()}
+
+${basePrompt}`;
   }
 
   // ----------------------------------

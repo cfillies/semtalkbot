@@ -52,7 +52,8 @@ const supervisor =
 
 export async function handleMessage(
   agent: any,
-  context: any
+  context: any,
+  topLevelPrompt: string
 ) {
 
   // ---------------------------------------------------
@@ -113,7 +114,8 @@ export async function handleMessage(
   const systemPrompt =
     buildRuntimePrompt(
       mcpPrompt,
-      tools
+      tools,
+      topLevelPrompt
     );
 
   // ---------------------------------------------------
@@ -122,49 +124,49 @@ export async function handleMessage(
 
   const streamer = await createStreamingUpdater(context);
 
-  // const result =  await supervisor.invoke({
-  //   userQuery:
-  //     context.activity.text,
-  // });
-  // return result.finalResponse;
+  try {
+    const result =
+      await agent.invoke(
+        {
+          messages: [
 
-  const result =
-    await agent.invoke(
-      {
-        messages: [
+            new SystemMessage(
+              systemPrompt
+            ),
 
-          new SystemMessage(
-            systemPrompt
-          ),
-
-          new HumanMessage(
-            userText
-          ),
-        ],
-      },
-      {
-        configurable: {
-          thread_id:
-            context.activity
-              .conversation?.id
-            ?? "default",
+            new HumanMessage(
+              userText
+            ),
+          ],
         },
-      }
-    );
+        {
+          configurable: {
+            thread_id:
+              context.activity
+                .conversation?.id
+              ?? "default",
+          },
+        }
+      );
 
+    const finalMessage =
+      result?.messages?.[
+        result.messages.length - 1
+      ];
 
+    const content =
+      finalMessage?.content ??
+      "Sorry, I did not receive a response from the agent.";
 
-  // ---------------------------------------------------
-  // EXTRACT FINAL MESSAGE
-  // ---------------------------------------------------
-
-  const finalMessage =
-    result.messages[
-    result.messages.length - 1
-    ];
-
-  await streamer.final(
-    finalMessage.content
-  );
-  return finalMessage.content;
+    const posted = await streamer.final(content);
+    return posted ? null : content;
+  } catch (err) {
+    console.error("[AGENT] invoke failed", err);
+    try {
+      await streamer.complete();
+    } catch (streamError) {
+      console.warn("[STREAMER] complete failed", streamError);
+    }
+    return "Sorry, I encountered an internal error while generating the response. Please try again.";
+  }
 }
