@@ -8,7 +8,11 @@ import {
 } from "@langchain/langgraph";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { getTools } from "../mcp/mcpToolsAdapter";
-import { createBpmnTaskAgent } from "../agents/createBpmnTaskAgent";
+import { createBpmnAgent } from "../agents/createBpmnAgent";
+import {
+  parseBpmnAgentConfig,
+  type ParsedBpmnAgentConfig,
+} from "./bpmnAgentConfig";
 import {
   parseBpmnTaskConfig,
   selectTools,
@@ -51,37 +55,87 @@ function buildGatewayRoute(gatewayId: string, flows: any[]) {
   };
 }
 
-function createTaskNode(
-  task: ParsedBpmnTaskConfig,
-  sharedAgent: any,
-  globalSystemPrompt: string,
-  threadId: string,
-  availableTools: any[]
-) {
-  const requiresDedicatedAgent =
-    task.modelDefined ||
-    task.temperatureDefined ||
-    task.toolFilterDefined;
+function buildAgentTopology(bpmn: any, fallbackSystemPrompt: string) {
+  const process = bpmn.definitions.process;
+  const collaboration = bpmn.definitions.collaboration;
+  const laneSets = asArray(process.laneSet);
+  const participants = asArray(collaboration?.participant);
 
-  const taskTools = selectTools(
-    availableTools,
-    task.toolNames
+  const laneConfigs = new Map<string, ParsedBpmnAgentConfig>();
+  const taskToLaneId = new Map<string, string>();
+
+  for (const laneSet of laneSets) {
+    for (const lane of asArray(laneSet.lane)) {
+      const laneConfig = parseBpmnAgentConfig(lane, fallbackSystemPrompt);
+      laneConfigs.set(laneConfig.id, laneConfig);
+
+      for (const flowNodeRef of asArray(lane.flowNodeRef)) {
+        taskToLaneId.set(String(flowNodeRef), laneConfig.id);
+      }
+    }
+  }
+
+  const participantConfigs = participants.map((participant: any) =>
+    parseBpmnAgentConfig(participant, fallbackSystemPrompt)
   );
 
-  const agent =
-    !requiresDedicatedAgent && sharedAgent
-      ? sharedAgent
-      : createBpmnTaskAgent(task, taskTools);
+  if (participantConfigs.length > 1) {
+    console.warn(
+      `[BPMN] multiple participants found; using ${participantConfigs[0].name} as the default fallback agent`
+    );
+  }
+
+  const defaultAgentConfig =
+    participantConfigs[0] ?? parseBpmnAgentConfig(process, fallbackSystemPrompt);
+
+  return {
+    laneConfigs,
+    taskToLaneId,
+    defaultAgentConfig,
+  };
+}
+
+function createTaskNode(
+  task: ParsedBpmnTaskConfig,
+  agentConfig: ParsedBpmnAgentConfig,
+  threadId: string,
+  availableTools: any[],
+  agentCache: Map<string, any>
+) {
+  const laneTools = selectTools(availableTools, agentConfig.toolNames);
+  const effectiveTools = task.toolFilterDefined
+    ? selectTools(laneTools, task.toolNames)
+    : laneTools;
+  const cacheKey = [
+    agentConfig.id,
+    agentConfig.model ?? "gpt-4o-mini",
+    String(agentConfig.temperature ?? 0),
+    effectiveTools.map((tool) => tool.name).join("|"),
+  ].join("::");
+
+  let agent = agentCache.get(cacheKey);
+  if (!agent) {
+    agent = createBpmnAgent(agentConfig, effectiveTools);
+    agentCache.set(cacheKey, agent);
+  }
 
   return async (state: any) => {
     const historyMessages = Array.isArray(state.messages)
       ? state.messages
       : [];
 
+    const systemMessages = [
+      new SystemMessage(agentConfig.systemPrompt),
+    ];
+
+    if (task.systemPromptDefined && task.systemPrompt.trim()) {
+      systemMessages.push(new SystemMessage(task.systemPrompt));
+    }
+
     const response = await agent.invoke(
       {
         messages: [
-          new SystemMessage(task.systemPrompt || globalSystemPrompt),
+          ...systemMessages,
           ...historyMessages,
           new HumanMessage(
             [
@@ -95,7 +149,7 @@ function createTaskNode(
       },
       {
         configurable: {
-          thread_id: `${threadId}:${task.id}`,
+          thread_id: `${threadId}:${agentConfig.id}:${task.id}`,
         },
       }
     );
@@ -111,7 +165,7 @@ function createTaskNode(
 
 export function createBPMNStateGraph(
   xml: string,
-  agent: any,
+  _agent: any,
   systemPrompt: string,
   threadId: string
 ) {
@@ -128,6 +182,10 @@ export function createBPMNStateGraph(
   const endEvents = asArray(process.endEvent);
   const flows = asArray(process.sequenceFlow);
   const availableTools = getTools();
+  const { laneConfigs, taskToLaneId, defaultAgentConfig } = buildAgentTopology(
+    bpmn,
+    systemPrompt
+  );
 
   const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -140,6 +198,7 @@ export function createBPMNStateGraph(
   });
 
   let graph: any = new StateGraph(StateAnnotation);
+  const agentCache = new Map<string, any>();
 
   graph = graph.addNode("seed_input", async (state: any) => ({
     messages: state.userQuery
@@ -156,21 +215,25 @@ export function createBPMNStateGraph(
   }
 
   for (const task of tasks) {
-    const taskConfig = parseBpmnTaskConfig(task, systemPrompt);
+    const laneId = taskToLaneId.get(String(task.id));
+    const laneConfig =
+      (laneId ? laneConfigs.get(laneId) : undefined) ?? defaultAgentConfig;
+    const taskConfig = parseBpmnTaskConfig(task, systemPrompt, laneId);
+
     graph = graph.addNode(
       taskConfig.id,
       createTaskNode(
         taskConfig,
-        agent,
-        systemPrompt,
+        laneConfig,
         threadId,
-        availableTools
+        availableTools,
+        agentCache
       )
     );
   }
 
   for (const gateway of gateways) {
-    graph = graph.addNode(String(gateway.id), async (_state: any) => ({
+    graph = graph.addNode(String(gateway.id), async () => ({
       messages: [],
     }));
   }

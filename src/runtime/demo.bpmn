@@ -3,6 +3,20 @@
              xmlns:ai="http://example.com/ai">
   <process id="demoProcess">
     <startEvent id="start1" />
+    <laneSet id="laneSet1">
+      <lane id="lane1" name="Orchestrator">
+        <flowNodeRef>task1</flowNodeRef>
+        <ai:Agent systemPrompt="You are the orchestrator lane agent for intake and routing." />
+      </lane>
+      <lane id="lane2" name="Billing">
+        <flowNodeRef>task2</flowNodeRef>
+        <ai:Agent systemPrompt="You are the billing lane agent." />
+      </lane>
+      <lane id="lane3" name="Support">
+        <flowNodeRef>task3</flowNodeRef>
+        <ai:Agent systemPrompt="You are the support lane agent." />
+      </lane>
+    </laneSet>
     <task id="task1" name="Collect User Input">
       <ai:LLMTask promptTemplate="Collect the user's request in plain text."/>
     </task>

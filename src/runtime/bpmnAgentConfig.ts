@@ -1,10 +1,7 @@
-export type ParsedBpmnTaskConfig = {
+export type ParsedBpmnAgentConfig = {
   id: string;
   name: string;
-  promptTemplate: string;
   systemPrompt: string;
-  systemPromptDefined: boolean;
-  laneId?: string;
   model?: string;
   modelDefined: boolean;
   temperature?: number;
@@ -59,19 +56,23 @@ function parseTemperature(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export function parseBpmnTaskConfig(
-  task: any,
-  globalSystemPrompt: string,
-  laneId?: string
-) {
-  const metadata = task?.["ai:LLMTask"] ?? task?.["ai:Task"] ?? {};
+export function parseBpmnAgentConfig(
+  laneOrParticipant: any,
+  fallbackSystemPrompt: string
+): ParsedBpmnAgentConfig {
+  const metadata =
+    laneOrParticipant?.["ai:Agent"] ??
+    laneOrParticipant?.["ai:Participant"] ??
+    laneOrParticipant?.["ai:LLMAgent"] ??
+    {};
 
-  const promptTemplate =
-    toStringValue(metadata.promptTemplate) ??
-    `Perform task: ${task?.name ?? task?.id ?? "BPMN task"}`;
-
-  const taskSystemPrompt = toStringValue(metadata.systemPrompt);
-  const systemPromptDefined = Object.prototype.hasOwnProperty.call(metadata, "systemPrompt");
+  const systemPrompt = [
+    fallbackSystemPrompt,
+    toStringValue(metadata.systemPrompt),
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 
   const modelDefined = Object.prototype.hasOwnProperty.call(metadata, "model");
   const temperatureDefined = Object.prototype.hasOwnProperty.call(metadata, "temperature");
@@ -81,53 +82,33 @@ export function parseBpmnTaskConfig(
     Object.prototype.hasOwnProperty.call(metadata, "toolList");
 
   return {
-    id: String(task?.id ?? ""),
-    name: String(task?.name ?? task?.id ?? "BPMN task"),
-    promptTemplate,
-    systemPrompt: taskSystemPrompt ?? "",
-    systemPromptDefined,
-    laneId,
+    id: String(laneOrParticipant?.id ?? ""),
+    name: String(laneOrParticipant?.name ?? laneOrParticipant?.id ?? "BPMN agent"),
+    systemPrompt: systemPrompt || fallbackSystemPrompt,
     model: toStringValue(metadata.model),
     modelDefined,
     temperature: parseTemperature(metadata.temperature),
     temperatureDefined,
     toolNames: toStringList(metadata.tools ?? metadata.toolNames ?? metadata.toolList),
     toolFilterDefined,
-  } satisfies ParsedBpmnTaskConfig;
+  };
 }
 
-export function selectTools(
-  allTools: any[],
-  allowedToolNames: string[]
-) {
-  if (!allowedToolNames?.length) {
-    return allTools;
-  }
+export function getAgentNodeKey(agent: ParsedBpmnAgentConfig) {
+  return `agent:${agent.id}`;
+}
 
-  const toolMap = new Map<string, any>();
-  for (const tool of allTools ?? []) {
-    if (tool?.name) {
-      toolMap.set(String(tool.name), tool);
+export function getLaneNodeKey(laneId: string) {
+  return `lane:${laneId}`;
+}
+
+export function getTaskLaneId(taskId: string, laneToTaskMap: Map<string, string>) {
+  for (const [laneId, mappedTaskId] of laneToTaskMap.entries()) {
+    if (mappedTaskId === taskId) {
+      return laneId;
     }
   }
 
-  const selected: any[] = [];
-  const missing: string[] = [];
-
-  for (const toolName of allowedToolNames) {
-    const tool = toolMap.get(toolName);
-    if (tool) {
-      selected.push(tool);
-    } else {
-      missing.push(toolName);
-    }
-  }
-
-  if (missing.length) {
-    console.warn(
-      `[BPMN] requested tools not found: ${missing.join(", ")}`
-    );
-  }
-
-  return selected;
+  return undefined;
 }
+
