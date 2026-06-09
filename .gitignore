@@ -6,7 +6,6 @@ env/.env.sandbox
 env/.env.playground
 .localConfigs
 .localConfigs.playground
-.localConfigs
 .notification.localstore.json
 .notification.playgroundstore.json
 appPackage/build
@@ -25,5 +24,3 @@ lib/
 # Dev tool directories
 /devTools/
 package-lock.json
-env/.env.playground
-env/.env.dev
