@@ -1,22 +1,15 @@
 import { MessageFactory } from "@microsoft/agents-hosting";
 import { handleMessage } from "./handlers";
+import { parseResponseContent } from "../runtime/responseFormat";
 
-function isAdaptiveCardPayload(payload: any) {
-  return (
-    payload && typeof payload === "object" &&
-    (payload.type === "AdaptiveCard" ||
-      (payload.content && payload.content.type === "AdaptiveCard"))
-  );
-}
-
-export function createBot(agent: any, systemPrompt: string) {
+export function createMAFBot(langchainagent: any, systemPrompt: string) {
 
   return async (context: any) => {
 
     let content: string | null;
 
     try {
-      content = await handleMessage(agent, context, systemPrompt);
+      content = await handleMessage(langchainagent, context, systemPrompt);
     } catch (err) {
       console.error("[BOT] handler failed", err);
       await context.sendActivity(
@@ -30,14 +23,13 @@ export function createBot(agent: any, systemPrompt: string) {
     }
 
     try {
-      const parsed = JSON.parse(content);
+      const parsed = parseResponseContent(content);
 
-      if (isAdaptiveCardPayload(parsed)) {
-        const card = parsed.type === "AdaptiveCard" ? parsed : parsed.content;
+      if (parsed.kind === "adaptive_card") {
         return context.sendActivity(
           MessageFactory.attachment({
             contentType: "application/vnd.microsoft.card.adaptive",
-            content: card,
+            content: parsed.content,
           })
         );
       }

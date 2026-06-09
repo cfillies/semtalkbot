@@ -1,6 +1,7 @@
 import {
   subscribeRuntimeEvents
 } from "../runtime/runtimeEvents";
+import { parseResponseContent } from "../runtime/responseFormat";
 
 function buildUpdateActivity(
   context: any,
@@ -32,7 +33,21 @@ function buildUpdateActivity(
   activity.from = conversationRef.agent;
   activity.recipient = conversationRef.user;
 
-  delete activity.attachments;
+  const parsed = parseResponseContent(text);
+
+  if (parsed.kind === "adaptive_card") {
+    activity.attachments = [
+      {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: parsed.content,
+      },
+    ];
+    delete activity.text;
+  } else {
+    delete activity.attachments;
+    activity.text = text;
+  }
+
   delete activity.entities;
   delete activity.channelData;
   delete activity.replyToId;
@@ -131,7 +146,25 @@ export async function createStreamingUpdater(
 
       // Fallback: send the final text as a normal message (may toast).
       try {
-        await context.sendActivity(text);
+        const parsed = parseResponseContent(text);
+
+        if (parsed.kind === "adaptive_card") {
+          await context.sendActivity({
+            type: "message",
+            attachments: [
+              {
+                contentType: "application/vnd.microsoft.card.adaptive",
+                content: parsed.content,
+              },
+            ],
+          });
+        } else {
+          await context.sendActivity({
+            type: "message",
+            text,
+            textFormat: "markdown",
+          });
+        }
         return true;
       } catch (err) {
         console.warn("[STREAMER] final send failed", err);

@@ -2,14 +2,14 @@ import { resolvePrompt } from "../prompts/resolvePrompt";
 import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createStreamingUpdater } from "../teams/streamingUpdater";
-import { createSupervisorGraph } from "../runtime/createSupervisorGraph";
+import { createStateGraph } from "../runtime/createStateGraph";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
 // -----------------------------------------------------
 
 export async function handleMessage(
-  agent: any,
+  langchainreactagent: any,
   context: any,
   topLevelPrompt: string
 ) {
@@ -55,8 +55,8 @@ export async function handleMessage(
     topLevelPrompt
   );
 
-  const supervisor = createSupervisorGraph(
-    agent,
+  const agentGraph = createStateGraph(
+    langchainreactagent,
     systemPrompt,
     context.activity.conversation?.id ?? "default"
   );
@@ -68,13 +68,15 @@ export async function handleMessage(
   const streamer = await createStreamingUpdater(context);
 
   try {
-    const result = await supervisor.invoke({
+    let result = await agentGraph.invoke({
       userQuery: userText,
     });
 
-    const content =
+    let content =
       result?.finalResponse ??
       "Sorry, I did not receive a response from the agent.";
+    content = content.replace("```json\n", "");
+    content = content.replace("\n```", "");
 
     const posted = await streamer.final(content);
     return posted ? null : content;

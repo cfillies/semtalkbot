@@ -8,11 +8,10 @@ import { RuntimeState } from "./state";
 import { createProcessAgentNode } from "../agents/processAgent";
 import { aggregateNode } from "../agents/aggregateNode";
 
-export function createSupervisorGraph(
+export function createStateGraph(
   agent: any,
   systemPrompt: string,
-  threadId: string
-) {
+  threadId: string) {
   const graph = new StateGraph(RuntimeState)
     .addNode(
       "processAgent",

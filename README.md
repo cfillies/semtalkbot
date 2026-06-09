@@ -144,7 +144,8 @@ The parameter file currently expects:
 ## Notes
 
 - The repository contains a few `*.ts.txt` files that look like captured source snapshots. They are not part of the main runtime path.
-- `src/runtime/createSupervisorGraph.ts` and the nodes under `src/agents/` are intentionally small and can be expanded as the process workflow grows.
+- `src/runtime/createStateGraph.ts` and the nodes under `src/agents/` are intentionally small and can be expanded as the process workflow grows.
+- BPMN tasks can carry task-specific AI metadata in `<ai:LLMTask ... />`, including `promptTemplate`, `model`, `temperature`, and a comma-separated `tools` list for per-node LLM behavior.
 - There are no automated tests defined yet in `package.json`.
 
 ## Related Files

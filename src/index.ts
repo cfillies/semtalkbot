@@ -1,11 +1,11 @@
 import { bootstrap } from "./bootstrap/bootstrap";
 import { createAgent } from "./agents/createAgent";
-import { buildSystemPrompt } from "./agents/systemPrompt";
-import { createBot } from "./bot/bot";
+// import { buildSystemPrompt } from "./agents/systemPrompt";
+import { createMAFBot as createMAFBot } from "./bot/bot";
 // import { getTools } from "./mcp/mcpToolsAdapter";
 import { startServer } from "@microsoft/agents-hosting-express";
 
-import { AgentApplicationBuilder } from "@microsoft/agents-hosting";
+import { AgentApplicationBuilder as MAFAgentApplicationBuilder } from "@microsoft/agents-hosting";
 import { DEFAULT_SYSTEM_PROMPT } from "./agents/defaultPrompt";
 async function main() {
 
@@ -13,24 +13,24 @@ async function main() {
   await bootstrap();
 
   // 2. CREATE AGENT
-  const agent = createAgent();
+  const langgraph_reactagent = createAgent();
 
   // 3. SYSTEM PROMPT
   // const systemPrompt = buildSystemPrompt(getTools());
   const systemPrompt = DEFAULT_SYSTEM_PROMPT;
 
   // 4. BOT WRAPPER
-  const botHandler = createBot(agent, systemPrompt);
+  const botHandler = createMAFBot(langgraph_reactagent, systemPrompt);
 
-  const app = new AgentApplicationBuilder().build();
+  const mafApp = new MAFAgentApplicationBuilder().build();
 
-  app.onActivity("message", botHandler);
+  mafApp.onActivity("message", botHandler);
 
-  app.onConversationUpdate("membersAdded", async (ctx) => {
+  mafApp.onConversationUpdate("membersAdded", async (ctx) => {
     await ctx.sendActivity("Hello 👋");
   });
 
-  startServer(app);
+  startServer(mafApp);
 
   console.log("[BOT] ready");
 }
