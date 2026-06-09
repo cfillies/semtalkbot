@@ -4,8 +4,11 @@ export interface RoutedTool {
 }
 
 import OpenAI from "openai";
+import { getOpenAIApiKey } from "../config/openai";
 
-const openai = new OpenAI();
+const openai = new OpenAI({
+  apiKey: getOpenAIApiKey(),
+});
 
 export async function routeTools(
   userQuery: string,

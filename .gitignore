@@ -1,7 +1,9 @@
 # TeamsFx files
+env/.env.dev
 env/.env.*.user
 env/.env.local
 env/.env.sandbox
+env/.env.playground
 .localConfigs
 .localConfigs.playground
 .localConfigs
