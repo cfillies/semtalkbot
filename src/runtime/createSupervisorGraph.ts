@@ -5,14 +5,19 @@ import {
 } from "@langchain/langgraph";
 
 import { RuntimeState } from "./state";
-import { processAgentNode } from "../agents/processAgent";
+import { createProcessAgentNode } from "../agents/processAgent";
 import { aggregateNode } from "../agents/aggregateNode";
 
-export function createSupervisorGraph() {
-
-  // ✅ CRITICAL FIX: MUST pass Annotation Root, NOT plain object
+export function createSupervisorGraph(
+  agent: any,
+  systemPrompt: string,
+  threadId: string
+) {
   const graph = new StateGraph(RuntimeState)
-    .addNode("processAgent", processAgentNode)
+    .addNode(
+      "processAgent",
+      createProcessAgentNode(agent, systemPrompt, threadId)
+    )
     .addNode("aggregate", aggregateNode)
     .addEdge(START, "processAgent")
     .addEdge("processAgent", "aggregate")

@@ -91,17 +91,34 @@ ${basePrompt}`;
   return `
 ${basePrompt}
 
------------------------------------
-AVAILABLE TOOLS
------------------------------------
-
-${toolText}
-
 Use MCP tools whenever
 enterprise-specific information
 is needed.
 
 Prefer repository data over
 general world knowledge.
+
+Use Adaptive Cards or MarkDown to format your response.
+Only one single answer. Do not mix MarkDown and AdaptiveCards.
+
+Respond in JSON format with the following JSON schema:
+{
+    "contentType": "AdaptiveCard",
+    "content": {The content of the response as JSON based adaptive card}
+}
+
+OR 
+
+{
+    "contentType": "Text",
+    "content": "The content of the response as markdown"
+}
 `;
 }
+
+
+// -----------------------------------
+// AVAILABLE TOOLS
+// -----------------------------------
+
+// ${toolText}

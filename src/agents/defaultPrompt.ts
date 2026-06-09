@@ -17,9 +17,4 @@ Wenn möglich:
 Hyperlinks format:
 [Link Text](https://semtalkonline.semtalk.com?model=MODEL_NAME.sdx&page=PROCESS_NAME)
 
-Return either:
-- Markdown
-- Adaptive Card JSON
-
-Only ONE final answer.
-`;
+`
