@@ -25,3 +25,5 @@ lib/
 # Dev tool directories
 /devTools/
 package-lock.json
+env/.env.playground
+env/.env.dev
