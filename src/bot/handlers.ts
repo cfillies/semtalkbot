@@ -3,6 +3,8 @@ import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createStreamingUpdater } from "../teams/streamingUpdater";
 import { createStateGraph } from "../runtime/createStateGraph";
+import { createBPMNStateGraph } from "../runtime/createBPMNStateGraph";
+import fs from "fs";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -11,7 +13,7 @@ import { createStateGraph } from "../runtime/createStateGraph";
 export async function handleMessage(
   langchainreactagent: any,
   context: any,
-  topLevelPrompt: string
+  systemPrompt: string
 ) {
   // ---------------------------------------------------
   // USER INPUT
@@ -29,37 +31,49 @@ export async function handleMessage(
 
   console.log(`[TOOLS] ${tools.length} loaded`);
 
-  // ---------------------------------------------------
-  // RESOLVE MCP PROMPT
-  // ---------------------------------------------------
 
-  let mcpPrompt = null;
+    // ---------------------------------------------------
+    // RESOLVE MCP PROMPT
+    // ---------------------------------------------------
 
-  try {
-    mcpPrompt = await resolvePrompt(userText);
+    let resolvedUserPrompt = null;
 
-    if (mcpPrompt) {
-      console.log("[PROMPT]", mcpPrompt.description ?? "resolved");
+    try {
+      resolvedUserPrompt = await resolvePrompt(userText);
+
+      if (resolvedUserPrompt) {
+        console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
+      }
+    } catch (err) {
+      console.warn("[PROMPT] resolution failed", err);
     }
-  } catch (err) {
-    console.warn("[PROMPT] resolution failed", err);
-  }
+    const runtimePrompt = buildRuntimePrompt(
+      resolvedUserPrompt,
+      tools,
+      userText
+    );
 
   // ---------------------------------------------------
   // BUILD FINAL SYSTEM PROMPT
   // ---------------------------------------------------
 
-  const systemPrompt = buildRuntimePrompt(
-    mcpPrompt,
-    tools,
-    topLevelPrompt
-  );
+  let agentGraph: any;
 
-  const agentGraph = createStateGraph(
-    langchainreactagent,
-    systemPrompt,
-    context.activity.conversation?.id ?? "default"
-  );
+  let usebpmn = true;
+  if (!usebpmn) {
+
+    agentGraph = createStateGraph(
+      langchainreactagent,
+      runtimePrompt,
+      context.activity.conversation?.id ?? "default"
+    );
+  } else {
+
+    const xml = fs.readFileSync("demo.bpmn", "utf-8");
+    agentGraph = createBPMNStateGraph(xml, langchainreactagent, systemPrompt,
+      context.activity.conversation?.id ?? "default"
+    )
+  }
 
   // ---------------------------------------------------
   // INVOKE LANGGRAPH AGENT
@@ -69,7 +83,7 @@ export async function handleMessage(
 
   try {
     let result = await agentGraph.invoke({
-      userQuery: userText,
+      userQuery: runtimePrompt,
     });
 
     let content =

@@ -1,102 +1,42 @@
-import { DEFAULT_SYSTEM_PROMPT }
-from "./defaultPrompt";
+// import { DEFAULT_SYSTEM_PROMPT } from "./defaultPrompt";
+import { flattenPromptMessages } from "../mcp/mcpPromptsAdapter";
 
-
-function formatTools(
-  tools: any[]
-) {
-
+function formatTools(tools: any[]) {
   if (!tools?.length) {
     return "No tools available.";
   }
 
   return tools
-    .map(
-      t =>
-        `- ${t.name}: ${t.description}`
-    )
+    .map((tool) => `- ${tool.name}: ${tool.description}`)
     .join("\n");
 }
 
-
-function flattenPrompt(
-  mcpPrompt: any
-): string {
-
-  if (
-    !mcpPrompt?.messages?.length
-  ) {
-    return "";
-  }
-
-  return mcpPrompt.messages
-    .map((m: any) => {
-
-      if (
-        typeof m.content === "string"
-      ) {
-        return m.content;
-      }
-
-      if (m.content?.text) {
-        return m.content.text;
-      }
-
-      return JSON.stringify(m.content);
-
-    })
-    .join("\n\n");
-}
-
-
 export function buildRuntimePrompt(
-  mcpPrompt: any,
+  resolvedUserPrompt: any,
   tools: any[],
   fallbackPrompt?: string
 ) {
-
-  // ----------------------------------
-  // MCP PROMPT OR FALLBACK
-  // ----------------------------------
-
-  let basePrompt =
-    flattenPrompt(mcpPrompt);
+  let basePrompt = flattenPromptMessages(resolvedUserPrompt);
 
   if (!basePrompt?.trim()) {
-
-    console.log(
-      "[PROMPT] using default fallback prompt"
-    );
-
-    basePrompt = DEFAULT_SYSTEM_PROMPT;
+    console.log("[PROMPT] using default fallback prompt");
+    basePrompt = fallbackPrompt;
   }
 
   if (fallbackPrompt?.trim()) {
-    basePrompt = `${fallbackPrompt.trim()}
-
-${basePrompt}`;
+    basePrompt = `${fallbackPrompt.trim()}\n\n${basePrompt}`;
   }
 
-  // ----------------------------------
-  // TOOLS
-  // ----------------------------------
-
-  const toolText =
-    formatTools(tools);
-
-  // ----------------------------------
-  // FINAL SYSTEM PROMPT
-  // ----------------------------------
+  const toolText = formatTools(tools);
 
   return `
 ${basePrompt}
 
-Use MCP tools whenever
-enterprise-specific information
-is needed.
+Available tools:
+${toolText}
 
-Prefer repository data over
-general world knowledge.
+Use MCP tools whenever enterprise-specific information is needed.
+Prefer repository data over general world knowledge.
 
 Use Adaptive Cards or MarkDown to format your response.
 Only one single answer. Do not mix MarkDown and AdaptiveCards.
@@ -107,7 +47,7 @@ Respond in JSON format with the following JSON schema:
     "content": {The content of the response as JSON based adaptive card}
 }
 
-OR 
+OR
 
 {
     "contentType": "Text",
@@ -115,10 +55,3 @@ OR
 }
 `;
 }
-
-
-// -----------------------------------
-// AVAILABLE TOOLS
-// -----------------------------------
-
-// ${toolText}

@@ -208,11 +208,11 @@ export function createBPMNStateGraph(
 
   graph = graph.addEdge(START, "seed_input");
 
-  for (const startEvent of startEvents) {
-    graph = graph.addNode(String(startEvent.id), async () => ({
-      messages: [],
-    }));
-  }
+  // for (const startEvent of startEvents) {
+  //   graph = graph.addNode(String(startEvent.id), async () => ({
+  //     messages: [],
+  //   }));
+  // }
 
   for (const task of tasks) {
     const laneId = taskToLaneId.get(String(task.id));
@@ -232,11 +232,25 @@ export function createBPMNStateGraph(
     );
   }
 
-  for (const gateway of gateways) {
-    graph = graph.addNode(String(gateway.id), async () => ({
-      messages: [],
-    }));
-  }
+  // for (const gateway of gateways) {
+  //   const gwId = gateway.id;
+  //   // graph = graph.addNode(String(gateway.id), async () => ({
+  //   //   messages: [],
+  //   // }));
+
+  //   const routeFn = (state: any) => {
+  //     const lastText = state.messages[state.messages.length - 1]?.content?.toLowerCase() || "";
+  //     const outgoing = flows.filter((f: any) => f.sourceRef === gwId);
+
+  //     for (const f of outgoing) {
+  //       if (f.name && lastText.includes(f.name.toLowerCase())) return f.targetRef;
+  //     }
+  //     return outgoing[0]?.targetRef ?? END;
+  //   };
+
+  //   graph = graph.addConditionalEdges(gwId, routeFn);
+
+  // }
 
   for (const endEvent of endEvents) {
     graph = graph.addNode(String(endEvent.id), async (state: any) => ({
@@ -275,9 +289,9 @@ export function createBPMNStateGraph(
     graph = graph.addEdge(String(flow.sourceRef), String(flow.targetRef));
   }
 
-  for (const endEvent of endEvents) {
-    graph = graph.addEdge(String(endEvent.id), END);
-  }
+  // for (const endEvent of endEvents) {
+  //   graph = graph.addEdge(String(endEvent.id), END);
+  // }
 
   return graph.compile();
 }

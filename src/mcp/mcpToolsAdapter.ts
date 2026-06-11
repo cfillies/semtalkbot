@@ -1,7 +1,6 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { emitRuntimeEvent } from "../runtime/runtimeEvents";
-// import { getMcpClient } from "./mcpClient";
 
 let toolsCache: any[] = [];
 

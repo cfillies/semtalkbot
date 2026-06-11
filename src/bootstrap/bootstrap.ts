@@ -14,8 +14,8 @@ export async function bootstrap(): Promise<AppContext> {
 
   await mcpClient.ping?.();
 
-  await buildToolRegistry(mcpClient);
   await loadPromptRegistry();
+  await buildToolRegistry(mcpClient);
 
   console.log("[BOOT] MCP ready");
 

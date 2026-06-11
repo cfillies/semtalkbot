@@ -114,14 +114,15 @@ If the response parses as Adaptive Card JSON, the bot sends it as a card attachm
 
 ## Prompt Routing
 
-Prompt selection now happens in two stages:
+Prompt routing now follows a single documented MCP prompt lane:
 
 1. `src/bootstrap/bootstrap.ts` loads the MCP prompt registry at startup.
 2. `src/prompts/resolvePrompt.ts` asks the MCP prompt adapter to score the available prompts against the user message.
+3. `src/mcp/mcpPromptsAdapter.ts` calls `prompts/get` for the best match and turns the returned prompt messages into runtime instructions.
 
 If no prompt scores highly enough, the bot falls back to the default runtime prompt.
 
-This means the bot is not using hard-coded prompt names anymore. It uses the prompt registry returned by MCP, then resolves the best match from the user's message.
+This means the bot is not using hard-coded prompt names anymore. It uses the MCP prompt registry for reusable user prompts and lets the MCP server define the prompt content.
 
 ## Azure Deployment
 

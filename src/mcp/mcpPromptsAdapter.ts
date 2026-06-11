@@ -3,6 +3,7 @@ import { getMcpClient } from "./mcpClient";
 export type McpPromptEntry = {
   name: string;
   description?: string;
+  metadata?: Record<string, any>;
   arguments?: Array<{
     name: string;
     description?: string;
@@ -197,6 +198,26 @@ function normalizeText(value: string) {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+export function flattenPromptMessages(prompt: any) {
+  if (!prompt?.messages?.length) {
+    return "";
+  }
+
+  return prompt.messages
+    .map((message: any) => {
+      if (typeof message.content === "string") {
+        return message.content;
+      }
+
+      if (message.content?.text) {
+        return message.content.text;
+      }
+
+      return JSON.stringify(message.content);
+    })
+    .join("\n\n");
 }
 
 function promptMatchesProcessHints(prompt: McpPromptEntry) {
