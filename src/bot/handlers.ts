@@ -5,6 +5,7 @@ import { createStreamingUpdater } from "../teams/streamingUpdater";
 import { createStateGraph } from "../runtime/createStateGraph";
 import { createBPMNStateGraph } from "../runtime/createBPMNStateGraph";
 import fs from "fs";
+import { createJSONStateGraph } from "../runtime/createJSONStateGraph";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -13,7 +14,8 @@ import fs from "fs";
 export async function handleMessage(
   langchainreactagent: any,
   context: any,
-  systemPrompt: string
+  systemPrompt: string,
+  mode: string
 ) {
   // ---------------------------------------------------
   // USER INPUT
@@ -32,26 +34,26 @@ export async function handleMessage(
   console.log(`[TOOLS] ${tools.length} loaded`);
 
 
-    // ---------------------------------------------------
-    // RESOLVE MCP PROMPT
-    // ---------------------------------------------------
+  // ---------------------------------------------------
+  // RESOLVE MCP PROMPT
+  // ---------------------------------------------------
 
-    let resolvedUserPrompt = null;
+  let resolvedUserPrompt = null;
 
-    try {
-      resolvedUserPrompt = await resolvePrompt(userText);
+  try {
+    resolvedUserPrompt = await resolvePrompt(userText);
 
-      if (resolvedUserPrompt) {
-        console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
-      }
-    } catch (err) {
-      console.warn("[PROMPT] resolution failed", err);
+    if (resolvedUserPrompt) {
+      console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
     }
-    const runtimePrompt = buildRuntimePrompt(
-      resolvedUserPrompt,
-      tools,
-      userText
-    );
+  } catch (err) {
+    console.warn("[PROMPT] resolution failed", err);
+  }
+  const runtimePrompt = buildRuntimePrompt(
+    resolvedUserPrompt,
+    tools,
+    userText
+  );
 
   // ---------------------------------------------------
   // BUILD FINAL SYSTEM PROMPT
@@ -59,20 +61,29 @@ export async function handleMessage(
 
   let agentGraph: any;
 
-  let usebpmn = true;
-  if (!usebpmn) {
-
-    agentGraph = createStateGraph(
-      langchainreactagent,
-      runtimePrompt,
-      context.activity.conversation?.id ?? "default"
-    );
-  } else {
-
-    const xml = fs.readFileSync("demo.bpmn", "utf-8");
-    agentGraph = createBPMNStateGraph(xml, langchainreactagent, systemPrompt,
-      context.activity.conversation?.id ?? "default"
-    )
+  switch (mode) {
+    case "default": {
+      agentGraph = createStateGraph(
+        langchainreactagent,
+        runtimePrompt,
+        context.activity.conversation?.id ?? "default"
+      );
+      break;
+    }
+    case "bpmn": {
+      const xml = fs.readFileSync("demo.bpmn", "utf-8");
+      agentGraph = createBPMNStateGraph(xml, langchainreactagent, systemPrompt,
+        context.activity.conversation?.id ?? "default"
+      )
+      break;
+    }
+    case "json": {
+      const json = fs.readFileSync("langgraph.json", "utf-8");
+      agentGraph = createJSONStateGraph(json, langchainreactagent, systemPrompt,
+        context.activity.conversation?.id ?? "default"
+      )
+      break;
+    }
   }
 
   // ---------------------------------------------------

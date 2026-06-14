@@ -1,3 +1,0 @@
-import { startServer } from "@microsoft/agents-hosting-express";
-import { botframeworkAgent } from "./agent";
-startServer(botframeworkAgent);

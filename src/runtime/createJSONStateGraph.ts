@@ -1,4 +1,3 @@
-import { XMLParser } from "fast-xml-parser";
 import {
   Annotation,
   END,
@@ -9,15 +8,9 @@ import {
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createBpmnAgent } from "../agents/createBpmnAgent";
-import { parseBpmnAgentConfig,
-  type ParsedBpmnAgentConfig,
-} from "./bpmnAgentConfig";
-import {
-  parseBpmnTaskConfig,
-  type ParsedBpmnTaskConfig,
-} from "./bpmnTaskConfig";
+import { ParsedJsonAgentConfig, parseJsonAgentConfig } from "./jsonAgentConfig";
 import { asArray, getLastText, selectTools } from "./utils";
-
+import { ParsedJsonTaskConfig, parseJsonTaskConfig } from "./jsonTaskConfig";
 
 function buildGatewayRoute(gatewayId: string, flows: any[]) {
   return (state: any) => {
@@ -34,28 +27,23 @@ function buildGatewayRoute(gatewayId: string, flows: any[]) {
   };
 }
 
-function buildAgentTopology(bpmn: any, fallbackSystemPrompt: string) {
-  const process = bpmn.definitions.process;
-  const collaboration = bpmn.definitions.collaboration;
-  const laneSets = asArray(process.laneSet);
-  const participants = asArray(collaboration?.participant);
-
-  const laneConfigs = new Map<string, ParsedBpmnAgentConfig>();
+function buildAgentTopology(process: any, fallbackSystemPrompt: string) {
+  const laneConfigs = new Map<string, ParsedJsonAgentConfig>();
   const taskToLaneId = new Map<string, string>();
+  const lanes = asArray(process.lanes);
 
-  for (const laneSet of laneSets) {
-    for (const lane of asArray(laneSet.lane)) {
-      const laneConfig = parseBpmnAgentConfig(lane, fallbackSystemPrompt);
+    for (const lane of lanes) {
+      const laneConfig = parseJsonAgentConfig(lane, fallbackSystemPrompt);
       laneConfigs.set(laneConfig.id, laneConfig);
 
-      for (const flowNodeRef of asArray(lane.flowNodeRef)) {
-        taskToLaneId.set(String(flowNodeRef), laneConfig.id);
+      for (const elementid of asArray(lane.elements)) {
+        taskToLaneId.set(String(elementid), laneConfig.id);
       }
     }
-  }
+  
 
-  const participantConfigs = participants.map((participant: any) =>
-    parseBpmnAgentConfig(participant, fallbackSystemPrompt)
+  const participantConfigs = lanes.map((participant: any) =>
+    parseJsonAgentConfig(participant, fallbackSystemPrompt)
   );
 
   if (participantConfigs.length > 1) {
@@ -65,7 +53,7 @@ function buildAgentTopology(bpmn: any, fallbackSystemPrompt: string) {
   }
 
   const defaultAgentConfig =
-    participantConfigs[0] ?? parseBpmnAgentConfig(process, fallbackSystemPrompt);
+    participantConfigs[0] ?? parseJsonAgentConfig(process, fallbackSystemPrompt);
 
   return {
     laneConfigs,
@@ -75,8 +63,8 @@ function buildAgentTopology(bpmn: any, fallbackSystemPrompt: string) {
 }
 
 function createTaskNode(
-  task: ParsedBpmnTaskConfig,
-  agentConfig: ParsedBpmnAgentConfig,
+  task: ParsedJsonTaskConfig,
+  agentConfig: ParsedJsonAgentConfig,
   threadId: string,
   availableTools: any[],
   agentCache: Map<string, any>
@@ -142,27 +130,30 @@ function createTaskNode(
   };
 }
 
-export function createBPMNStateGraph(
-  xml: string,
+export function createJSONStateGraph(
+  json: string,
   _agent: any,
   systemPrompt: string,
   threadId: string
 ) {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "",
-  });
-  const bpmn = parser.parse(xml);
-  const process = bpmn.definitions.process;
+  const langgraph: any = JSON.parse(json);
+  if (langgraph!.bpmn!.processes.length === 0) {
+    throw new Error("Invalid JSON graph: no processes found");
+  }
+  const process = langgraph!.bpmn.processes[0];
 
-  const tasks = asArray(process.task);
-  const gateways = asArray(process.exclusiveGateway);
-  const startEvents = asArray(process.startEvent);
-  const endEvents = asArray(process.endEvent);
-  const flows = asArray(process.sequenceFlow);
+  // const lanes = asArray(process.lanes);
+  const elements = asArray(process.elements);
+
+  const tasks = elements.filter(x => x.type === "task");
+  const gateways = elements.filter(x => x.type === "exclusiveGateway");
+  const startEvents = elements.filter(x => x.type === "startEvent");
+  const endEvents = elements.filter(x => x.type === "endEvent");
+  const flows = asArray(process.flows);
+  
   const availableTools = getTools();
   const { laneConfigs, taskToLaneId, defaultAgentConfig } = buildAgentTopology(
-    bpmn,
+    process,
     systemPrompt
   );
 
@@ -197,7 +188,7 @@ export function createBPMNStateGraph(
     const laneId = taskToLaneId.get(String(task.id));
     const laneConfig =
       (laneId ? laneConfigs.get(laneId) : undefined) ?? defaultAgentConfig;
-    const taskConfig = parseBpmnTaskConfig(task, systemPrompt, laneId);
+    const taskConfig = parseJsonTaskConfig(task, systemPrompt, laneId);
 
     graph = graph.addNode(
       taskConfig.id,

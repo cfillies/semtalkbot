@@ -1,6 +1,6 @@
 import { parseTemperature, toStringList, toStringValue } from "./utils";
 
-export type ParsedBpmnAgentConfig = {
+export type ParsedJsonAgentConfig = {
   id: string;
   name: string;
   systemPrompt: string;
@@ -12,14 +12,13 @@ export type ParsedBpmnAgentConfig = {
   toolFilterDefined: boolean;
 };
 
-export function parseBpmnAgentConfig(
+
+export function parseJsonAgentConfig(
   laneOrParticipant: any,
   fallbackSystemPrompt: string
-): ParsedBpmnAgentConfig {
+): ParsedJsonAgentConfig {
   const metadata =
-    laneOrParticipant?.["ai:Agent"] ??
-    laneOrParticipant?.["ai:Participant"] ??
-    laneOrParticipant?.["ai:LLMAgent"] ??
+    laneOrParticipant?.["attributes"] ??
     {};
 
   const systemPrompt = [
@@ -30,12 +29,9 @@ export function parseBpmnAgentConfig(
     .join("\n\n")
     .trim();
 
-  const modelDefined = Object.prototype.hasOwnProperty.call(metadata, "model");
-  const temperatureDefined = Object.prototype.hasOwnProperty.call(metadata, "temperature");
-  const toolFilterDefined =
-    Object.prototype.hasOwnProperty.call(metadata, "tools") ||
-    Object.prototype.hasOwnProperty.call(metadata, "toolNames") ||
-    Object.prototype.hasOwnProperty.call(metadata, "toolList");
+  const modelDefined = metadata.model !== undefined && metadata.model !== "";
+  const temperatureDefined = metadata.temperature !== undefined && metadata.temperature !== "";
+  const toolFilterDefined = metadata.toolNames !== undefined && metadata.toolNames !== "";
 
   return {
     id: String(laneOrParticipant?.id ?? ""),
@@ -50,7 +46,7 @@ export function parseBpmnAgentConfig(
   };
 }
 
-export function getAgentNodeKey(agent: ParsedBpmnAgentConfig) {
+export function getAgentNodeKey(agent: ParsedJsonAgentConfig) {
   return `agent:${agent.id}`;
 }
 

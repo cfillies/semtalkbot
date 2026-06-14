@@ -4,9 +4,15 @@ import {
   END,
 } from "@langchain/langgraph";
 
-import { RuntimeState } from "./state";
 import { createProcessAgentNode } from "../agents/processAgent";
 import { aggregateNode } from "../agents/aggregateNode";
+import { Annotation } from "@langchain/langgraph";
+
+const RuntimeState = Annotation.Root({
+  userQuery: Annotation<string>(),
+  processResult: Annotation<string>(),
+  finalResponse: Annotation<string>(),
+});
 
 export function createStateGraph(
   agent: any,

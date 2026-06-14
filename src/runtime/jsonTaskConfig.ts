@@ -1,6 +1,6 @@
 import { parseTemperature, toStringList, toStringValue } from "./utils";
 
-export type ParsedBpmnTaskConfig = {
+export type ParsedJsonTaskConfig = {
   id: string;
   name: string;
   promptTemplate: string;
@@ -15,26 +15,23 @@ export type ParsedBpmnTaskConfig = {
   toolFilterDefined: boolean;
 };
 
-export function parseBpmnTaskConfig(
+export function parseJsonTaskConfig(
   task: any,
   globalSystemPrompt: string,
   laneId?: string
 ) {
-  const metadata = task?.["ai:LLMTask"] ?? task?.["ai:Task"] ?? {};
+  const metadata = task?.attributes ?? {};
 
   const promptTemplate =
     toStringValue(metadata.promptTemplate) ??
     `Perform task: ${task?.name ?? task?.id ?? "BPMN task"}`;
 
   const taskSystemPrompt = toStringValue(metadata.systemPrompt);
-  const systemPromptDefined = Object.prototype.hasOwnProperty.call(metadata, "systemPrompt");
+  const systemPromptDefined = metadata.systemPrompt !== undefined && metadata.systemPrompt !== "";
 
-  const modelDefined = Object.prototype.hasOwnProperty.call(metadata, "model");
-  const temperatureDefined = Object.prototype.hasOwnProperty.call(metadata, "temperature");
-  const toolFilterDefined =
-    Object.prototype.hasOwnProperty.call(metadata, "-") ||
-    Object.prototype.hasOwnProperty.call(metadata, "toolNames") ||
-    Object.prototype.hasOwnProperty.call(metadata, "toolList");
+  const modelDefined = metadata.model !== undefined && metadata.model !== "";
+  const temperatureDefined = metadata.temperature !== undefined && metadata.temperature !== "";
+  const toolFilterDefined = metadata.toolNames !== undefined && metadata.toolNames !== "";
 
   return {
     id: String(task?.id ?? ""),
@@ -49,5 +46,7 @@ export function parseBpmnTaskConfig(
     temperatureDefined,
     toolNames: toStringList(metadata.tools ?? metadata.toolNames ?? metadata.toolList),
     toolFilterDefined,
-  } satisfies ParsedBpmnTaskConfig;
+  } satisfies ParsedJsonTaskConfig;
 }
+
+
