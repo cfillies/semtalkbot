@@ -1,5 +1,51 @@
 import { parseTemperature, toStringList, toStringValue } from "./utils";
 
+export enum SemTalkAssignment {
+    assignment = "=",
+    increment = "+=",
+    decrement = "-=",
+    new = " = new",
+    delete = "delete",
+    push = "push",
+    pop = "pop",
+    remove = "remove",
+    append = "append",
+    alert = "alert",
+    debug = "debug",
+    log = "log",
+    random = "random"
+}
+export enum SemTalkOperator {
+    eq = '==',
+    ne = '!=',
+    gt = '>',
+    lt = '<',
+    ge = '>=',
+    le = '<=',
+    in = 'in',
+    ni = 'not in',
+    is = 'is',
+    isnot = 'is not',
+    // like = 'like',
+    // notlike = 'not like',
+    and = 'and',
+    or = 'or',
+    not = 'not',
+    startswith = 'startswith',
+    endswith = 'endswith',
+    contains = 'contains'
+    // between = 'between',
+    // notbetween = 'not between',
+    // inlist = 'inlist',
+    // notinlist = 'not inlist',
+    // inrange = 'inrange',
+    // notinrange = 'not inrange'
+}
+export interface IExpression {
+    var: string;
+    op: SemTalkOperator | SemTalkAssignment;
+    val: string;
+}
 export type ParsedJsonTaskConfig = {
   id: string;
   name: string;
@@ -13,6 +59,9 @@ export type ParsedJsonTaskConfig = {
   temperatureDefined: boolean;
   toolNames: string[];
   toolFilterDefined: boolean;
+  inputs: string[];
+  outputs: string[];
+  AssignmentExpression: IExpression[]
 };
 
 export function parseJsonTaskConfig(
@@ -32,6 +81,7 @@ export function parseJsonTaskConfig(
   const modelDefined = metadata.model !== undefined && metadata.model !== "";
   const temperatureDefined = metadata.temperature !== undefined && metadata.temperature !== "";
   const toolFilterDefined = metadata.toolNames !== undefined && metadata.toolNames !== "";
+  const assignmentExpression: IExpression[] = metadata.AssignmentExpression != undefined ? JSON.parse(metadata.AssignmentExpression) : [];
 
   return {
     id: String(task?.id ?? ""),
@@ -46,6 +96,9 @@ export function parseJsonTaskConfig(
     temperatureDefined,
     toolNames: toStringList(metadata.tools ?? metadata.toolNames ?? metadata.toolList),
     toolFilterDefined,
+    inputs: task.inputs,
+    outputs: task.outputs,
+    AssignmentExpression:assignmentExpression,
   } satisfies ParsedJsonTaskConfig;
 }
 

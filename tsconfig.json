@@ -2,8 +2,9 @@
   "compilerOptions": {
     "declaration": true,
     "target": "es2019",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "ignoreDeprecations": "6.0",
+    "moduleResolution": "nodenext",
     "outDir": "./lib",
     "rootDir": "./",
     "sourceMap": true,

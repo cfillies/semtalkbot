@@ -3,12 +3,10 @@ import {
 } from "../runtime/runtimeEvents";
 import { parseResponseContent } from "../runtime/responseFormat";
 
-function buildUpdateActivity(
-  context: any,
+function buildUpdateActivity(context: any,
   sent: any,
   text: string,
-  conversationRef: any
-) {
+  conversationRef: any) {
   let activity: any;
 
   if (typeof context.activity?.clone === "function") {
@@ -45,7 +43,11 @@ function buildUpdateActivity(
     delete activity.text;
   } else {
     delete activity.attachments;
-    activity.text = text;
+    if (parsed.kind === "text") {
+      activity.text = parsed.content;
+    } else {
+      activity.text = text;
+    }
   }
 
   delete activity.entities;

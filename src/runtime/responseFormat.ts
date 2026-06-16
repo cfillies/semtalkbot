@@ -47,9 +47,15 @@ export function parseResponseContent(text: string) {
     if (adaptiveCard) {
       return { kind: "adaptive_card" as const, content: adaptiveCard };
     }
+    if (parsed.contentType === "Text") {
+      return {
+        kind: "text" as const,
+        content: parsed.content
+      };
+    }
   } catch (err) {
     // Not valid JSON, fall through to text.
   }
 
-  return { kind: "text" as const, content: text };
+return { kind: "text" as const, content: text };
 }
