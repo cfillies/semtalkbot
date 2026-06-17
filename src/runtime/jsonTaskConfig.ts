@@ -66,7 +66,7 @@ export type ParsedJsonTaskConfig = {
 
 export function parseJsonTaskConfig(
   task: any,
-  globalSystemPrompt: string,
+  _globalSystemPrompt: string,
   laneId?: string
 ) {
   const metadata = task?.attributes ?? {};

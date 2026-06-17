@@ -1,4 +1,3 @@
-import { bootstrap } from "./bootstrap/bootstrap";
 import { createMAFBot as createMAFBot } from "./bot/bot";
 import { startServer } from "@microsoft/agents-hosting-express";
 import { AgentApplicationBuilder as MAFAgentApplicationBuilder } from "@microsoft/agents-hosting";

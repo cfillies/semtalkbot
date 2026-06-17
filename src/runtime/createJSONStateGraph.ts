@@ -61,16 +61,16 @@ function buildAgentTopology(process: any, fallbackSystemPrompt: string) {
     defaultAgentConfig,
   };
 }
-function applyAssignmentExpression(proc: any, expression: IExpression[]) {
+function applyAssignmentExpression(proc: any, expression: IExpression[], updates: any) {
+
+  const changedVariables = new Set<string>();
+
   for (let expr of expression) {
     let obj1 = expr.var;
     let obj2 = expr.val;
     let op = expr.op as SemTalkAssignment;
     // let value1: any = "";
     let value2: any = "";
-
-
-
     let valname = obj2;
     let attr2 = "";
     let pkt2 = valname.indexOf(".");
@@ -79,8 +79,8 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
       valname = valname.substring(0, pkt2);
     }
     if (attr2) {
-          let inst2 = proc[valname];
-          value2 = inst2[attr2];
+      let inst2 = proc[valname];
+      value2 = inst2[attr2];
     } else {
       if (proc[valname] !== undefined) {
         value2 = proc[valname];
@@ -88,7 +88,6 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
         value2 = valname;
       }
     }
-
 
     if (value2 && typeof value2 !== 'boolean' && !isNaN(Number(value2))) value2 = Number(value2);
     if (value2 === 'true') value2 = true;
@@ -124,290 +123,12 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
     }
 
     if (attr1) {
-      // Es gibt immer einen varname 
-      // switch (varname) {
-      //   default: {
-      //     let businesoobj = ob.FindBusinessClass("Ob#" + varname);
-      //     if (businesoobj) {
-      //       // varname ist eine Infoklasse => erste Instanz im Prozess
-      //       let siminst1 = proc.FindInstance(ob, businesoobj);
-      //       if (siminst1) {
-      //         // if (attr1) {
-      //         switch ((SemTalkAssignment as any)[op]) {
-      //           case SemTalkAssignment.assignment: {
-      //             // die SemTalk Instanz zur Simulationsinstanz
-      //             let inst2 = (siminst1.inst as ISemTalkObject);
-      //             let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-      //             if (cls) {
-      //               // wenn value2 eine Klasse ist, dann die Instanz holen
-      //               // der Fall, das es eine variable ist fehlt hier
-      //               let inst = proc.GetInstance(obj.ObjectBase, cls);
-      //               if (inst !== null) {
-      //                 // wenn es eine Instanz ist, dann die Assoziation herstellen
-      //                 // ansonsten den Wert setzen
-      //                 let inst3 = (inst.inst as ISemTalkObject);
-      //                 if (!inst2.HasDirectLink(attr1, inst3)) {
-      //                   inst2.MakeAssociation(attr1, inst3);
-      //                 }
-      //               }
-      //             } else {
-      //               inst2.SetValue(attr1, value2);
-      //             }
-      //             break;
-      //           }
-
-      //           // Listenoperationen bei Instanzen beziehen sich auf listenwertige Attribute
-      //           // bei listenwertigen variablen könnte man auch list von objekten machen
-      //           // ober bei objekten schauen ob es attr1 eine Association ist
-      //           case SemTalkAssignment.push: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               v.push(value2);
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.pop: {
-      //             try {
-      //               let value = siminst1.inst.GetValue(attr1).split(";");
-      //               if (Array.isArray(value)) {
-      //                 proc[value2] = value.pop();
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.append: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               if (!Array.isArray(value2)) {
-      //                 v.append(...value2);
-      //               } else {
-      //                 v.append(value2);
-      //               }
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.remove: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               if (Array.isArray(v) && v.indexOf(value2) > -1) {
-      //                 v.splice(v.indexOf(value2), 1);
-      //               }
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.alert: {
-      //             try {
-      //               let v = siminst1.inst;
-      //               if (ob.IsInstance(v)) {
-      //                 alert(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-      //               } else {
-      //                 alert(obj.ObjectCaption + ": " + varname + " = " + v);
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.debug: {
-      //             try {
-      //               let v = siminst1.inst;
-      //               if (ob.IsInstance(v)) {
-      //                 console.debug(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-      //               } else {
-      //                 console.debug(obj.ObjectCaption + ": " + varname + " = " + v);
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.increment: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1);
-      //               siminst1.inst.SetValue(attr1, v + value2);
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.decrement: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1);
-      //               siminst1.inst.SetValue(attr1, v - value2);
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.new: {
-      //             try {
-      //               let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-      //               let inst2 = (siminst1.inst as ISemTalkObject);
-      //               if (cls) {
-      //                 // wenn value2 eine Klasse ist, dann die Instanz holen
-      //                 // der Fall, das es eine variable ist fehlt hier
-      //                 let siminst = proc.GetInstance(obj.ObjectBase, cls);
-      //                 if (siminst !== null) {
-      //                   let inst3 = (siminst.inst as ISemTalkObject);
-      //                   if (!inst2.HasDirectLink(attr1, inst3)) {
-      //                     inst2.MakeAssociation(attr1, inst3);
-      //                   }
-      //                 }
-      //               } else {
-      //                 inst2.SetValue(attr1, value2);
-      //               }
-      //             } catch (e: any) {
-      //               alert(e.message);
-      //             }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.delete: {
-      //             try {
-      //               proc.DeleteInstance(siminst1);
-      //               // delete proc[varname];
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //         }
-      //         // }
-      //       }
-      //     } else {
-      //       // varname ist eine Variable und der Wert der Variablen ist ein Objekt
-      //       if (proc[varname] !== undefined && attr1 !== "") {
-      //         let siminst1: IInstance = proc[varname];
-      //         switch ((SemTalkAssignment as any)[op]) {
-      //           case SemTalkAssignment.assignment: {
-      //             // die SemTalk Instanz zur Simulationsinstanz
-      //             let inst2 = (siminst1.inst as ISemTalkObject);
-
-      //             let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-      //             if (cls) {
-      //               let siminst: IInstance | null = proc.GetInstance(obj.ObjectBase, cls);
-      //               if (siminst !== null) {
-      //                 let inst3 = (siminst.inst as ISemTalkObject);
-      //                 if (!inst2.HasDirectLink(attr1, inst3)) {
-      //                   inst2.MakeAssociation(attr1, inst3);
-      //                 }
-      //               }
-      //             } else {
-      //               inst2.SetValue(attr1, value2);
-      //             }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.push: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               v.push(value2);
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.pop: {
-      //             try {
-      //               let value = siminst1.inst.GetValue(attr1).split(";");
-      //               if (Array.isArray(value)) {
-      //                 proc[value2] = value.pop();
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.append: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               if (!Array.isArray(value2)) {
-      //                 v.append(...value2);
-      //               } else {
-      //                 v.append(value2);
-      //               }
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.alert: {
-      //             try {
-      //               let v = siminst1.inst;
-      //               if (ob.IsInstance(v)) {
-      //                 alert(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-      //               } else {
-      //                 alert(obj.ObjectCaption + ": " + varname + " = " + v);
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.debug: {
-      //             try {
-      //               let v = siminst1.inst;
-      //               if (ob.IsInstance(v)) {
-      //                 console.debug(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-      //               } else {
-      //                 console.debug(obj.ObjectCaption + ": " + varname + " = " + v);
-      //               }
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.remove: {
-      //             try {
-      //               let v = siminst1.inst.GetValue(attr1).split(";");
-      //               if (Array.isArray(v) && v.indexOf(value2) > -1) {
-      //                 v.splice(v.indexOf(value2), 1);
-      //               }
-      //               siminst1.inst.SetValue(attr1, v.join(";"));
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.increment: {
-      //             try {
-      //               let v = Number(siminst1.inst.GetValue(attr1));
-      //               siminst1.inst.SetValue(attr1, v + value2);
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.decrement: {
-      //             try {
-      //               let v = Number(siminst1.inst.GetValue(attr1));
-      //               siminst1.inst.SetValue(attr1, v - value2);
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.new: {
-      //             try {
-      //               let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-      //               let inst2 = (siminst1.inst as ISemTalkObject);
-      //               if (cls) {
-      //                 let siminst = proc.GetInstance(obj.ObjectBase, cls);
-      //                 if (siminst !== null) {
-      //                   let inst3 = (siminst.inst as ISemTalkObject);
-      //                   if (!inst2.HasDirectLink(attr1, inst3)) {
-      //                     inst2.MakeAssociation(attr1, inst3);
-      //                   }
-      //                 }
-      //               } else {
-      //                 inst2.SetValue(attr1, value2);
-      //               }
-      //             } catch (e: any) {
-      //               alert(e.message);
-      //             }
-      //             break;
-      //           }
-      //           case SemTalkAssignment.delete: {
-      //             try {
-      //               proc.DeleteInstance(siminst1);
-      //               delete proc[varname];
-      //             } catch (e) { }
-      //             break;
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
     } else {
       // es gibt kein Attribut, sondern nur eine Variable
       switch ((SemTalkAssignment as any)[op]) {
         case SemTalkAssignment.assignment: {
-          // let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-          // if (cls) {
-          //   let siminst: IInstance | null = proc.GetInstance(obj.ObjectBase, cls);
-          //   if (siminst) {
-          //     value2 = siminst;
-          //   }
-          // }
           proc[varname] = value2;
+          changedVariables.add(varname);
           break;
         }
         case SemTalkAssignment.push: {
@@ -418,6 +139,7 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
             }
             v.push(value2);
             proc[varname] = v;
+            changedVariables.add(varname);
           } catch (e) { }
           break;
         }
@@ -426,7 +148,8 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
             let value = proc[varname];
             if (Array.isArray(value)) {
               proc[value2] = value.pop();
-            }
+              changedVariables.add(value2);
+          }
           } catch (e) { }
           break;
         }
@@ -442,6 +165,7 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
               v.append(value2);
             }
             proc[varname] = v;
+            changedVariables.add(varname);
           } catch (e) { }
           break;
         }
@@ -452,29 +176,14 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
               v.splice(v.indexOf(value2), 1);
             }
             proc[varname] = v;
+            changedVariables.add(varname);
           } catch (e) { }
           break;
         }
-        // case SemTalkAssignment.alert: {
-        //   try {
-        //     let v = proc[varname];
-        //     if (ob.IsInstance(v)) {
-        //       alert(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-        //     } else {
-        //       alert(obj.ObjectCaption + ": " + varname + " = " + v);
-        //     }
-        //   } catch (e) { }
-        //   break;
-        // }
         case SemTalkAssignment.debug: {
           try {
             let v = proc[varname];
-            // if (ob.IsInstance(v)) {
-            //   console.debug(obj.ObjectCaption + ": " + varname + " = " + (v as ISemTalkInstance).ObjectCaption);
-            // } else {
-            //   console.debug(obj.ObjectCaption + ": " + varname + " = " + v);
-            // }
-              console.debug(varname + " = " + v);
+            console.debug(varname + " = " + v);
           } catch (e) { }
           break;
         }
@@ -482,6 +191,7 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
           try {
             let v = proc[varname];
             proc[varname] = v + value2;
+            changedVariables.add(varname);
           } catch (e) { }
           break;
         }
@@ -489,39 +199,28 @@ function applyAssignmentExpression(proc: any, expression: IExpression[]) {
           try {
             let v = proc[varname];
             proc[varname] = v - value2;
+            changedVariables.add(varname);
           } catch (e) { }
           break;
         }
-        // case SemTalkAssignment.new: {
-        //   try {
-        //     let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
-        //     if (cls) {
-        //       proc[varname] = proc.GetInstance(obj.ObjectBase, cls);
-        //     }
-        //   } catch (e) { }
-        //   break;
-        // }
-        // case SemTalkAssignment.delete: {
-        //   try {
-        //     let inst = proc[varname];
-        //     if (inst) {
-        //       proc.DeleteInstance(inst);
-        //       delete proc[varname];
-        //     }
-        //   } catch (e) { }
-        //   break;
-        // }
         case SemTalkAssignment.random: {
           // Random number between 0 and value2
           if (typeof value2 === 'number') {
             proc[varname] = Math.floor(Math.random() * value2);
+            changedVariables.add(varname);
           }
           break;
         }
       }
     }
-    // console.debug(obj1, op, value2);
   }
+    // create LangGraph update
+   for (const name of changedVariables) {
+    updates[name] = proc[name];
+  }
+
+  return updates;
+
 }
 function createTaskNode(
   task: ParsedJsonTaskConfig,
@@ -552,6 +251,9 @@ function createTaskNode(
     const historyMessages = Array.isArray(state.messages)
       ? state.messages
       : [];
+    if (!state.processVariables) {
+      state.processVariables = {};
+    }
     state.processVariables["userQuery"] = state.userQuery || "";
     let variables = state.processVariables;
     if (!variables) {
@@ -568,12 +270,17 @@ function createTaskNode(
       return k + ":" + (variables[k as string] || "[undefined]");
     }).join("\n");
 
-    // const inputValues = Object.entries(taskInputs).map(([key, value]) => {
-    //   return `${key}: ${state.processVariables?.global?.[value as string] || "[undefined]"}`;
-    // }).join("\n");
+    let outputTemplate: any = {};
+
+    for (let k of taskOutputs) {
+      outputTemplate[k] = "value for " + k
+    }
 
     // Construct user prompt, incorporating input values
-    const userPrompt = `BPMN task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
+    let userPrompt = `BPMN task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
+    if (taskOutputs.length > 0) {
+      userPrompt += "\n Please respond with the following output format:\n" + JSON.stringify(outputTemplate);
+    }
 
     const systemMessages = [
       new SystemMessage(agentConfig.systemPrompt),
@@ -601,31 +308,41 @@ function createTaskNode(
 
 
     // Assuming response has structured result
-    const structuredResult = response?.result || {}; // Adapt based on your actual response structure
+    // const structuredResult = response?.result || {}; // Adapt based on your actual response structure
+
+    // Return messages for the response
+    let structuredResult: any = {};
+    const messages = response?.messages ?? [];
+    const finalMessage = messages[messages.length - 1];
+    if (finalMessage.content) {
+      const trimmed = finalMessage.content.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        structuredResult = JSON.parse(finalMessage.content);
+      }
+
+    }
+
+    const updates: any = {};
 
     // Write the structured result back to globalVariables for future tasks
     for (const k of taskOutputs) {
       if (structuredResult[k] !== undefined) {
-        variables[k] = structuredResult[k]
+        updates[k] = structuredResult[k]
       }
     }
     // Object.entries(taskOutputs).forEach(([key, outputParam]) => {
     //   globalVariables[outputParam as string] = structuredResult[key];
     // });
 
-    // Return messages for the response
-    const messages = response?.messages ?? [];
-    const finalMessage = messages[messages.length - 1];
-
 
     // Write the updated globalVariables back to the state
     // let processVariables = state.processVariables;
     // processVariables.global = variables; // This line updates the state
 
-    applyAssignmentExpression(variables, task.AssignmentExpression);
- 
+    applyAssignmentExpression(variables, task.AssignmentExpression, updates);
+
     return {
-      processVariables: variables,
+      processVariables: updates,
       messages: finalMessage ? [finalMessage] : [],
     };
   };
@@ -658,14 +375,24 @@ export function createJSONStateGraph(
     systemPrompt
   );
 
+  // const StateAnnotation = Annotation.Root({
+  //   ...MessagesAnnotation.spec,
+  //   userQuery: Annotation<string>(),
+  //   finalResponse: Annotation<string>(),
+  //   processVariables: Annotation<{
+  //     global: Record<string, any>;
+  //     local: Record<string, any>;
+  //   }>(),
+  // });
+
   const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     userQuery: Annotation<string>(),
     finalResponse: Annotation<string>(),
-    processVariables: Annotation<{
-      global: Record<string, any>;
-      local: Record<string, any>;
-    }>(),
+    processVariables: Annotation<Record<string, any>>({
+      reducer: (x, y) => ({ ...x, ...y }),
+      default: () => ({}),
+    }),
   });
 
   let graph: any = new StateGraph(StateAnnotation);

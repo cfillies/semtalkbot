@@ -49,11 +49,7 @@ export async function handleMessage(
   } catch (err) {
     console.warn("[PROMPT] resolution failed", err);
   }
-  const runtimePrompt = buildRuntimePrompt(
-    resolvedUserPrompt,
-    tools,
-    userText
-  );
+
 
   // ---------------------------------------------------
   // BUILD FINAL SYSTEM PROMPT
@@ -61,8 +57,15 @@ export async function handleMessage(
 
   let agentGraph: any;
 
+  let runtimePrompt = userText;
+
   switch (mode) {
     case "default": {
+      runtimePrompt = buildRuntimePrompt(
+        resolvedUserPrompt,
+        tools,
+        userText
+      );
       agentGraph = createStateGraph(
         langchainreactagent,
         runtimePrompt,
@@ -78,8 +81,10 @@ export async function handleMessage(
       break;
     }
     case "json": {
+      let prompt = systemPrompt;
+      prompt = "";
       const json = fs.readFileSync("langgraph.json", "utf-8");
-      agentGraph = createJSONStateGraph(json, langchainreactagent, systemPrompt,
+      agentGraph = createJSONStateGraph(json, langchainreactagent, prompt,
         context.activity.conversation?.id ?? "default"
       )
       break;
