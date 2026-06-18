@@ -100,6 +100,7 @@ export async function handleMessage(
   try {
     let result = await agentGraph.invoke({
       userQuery: runtimePrompt,
+      processVariables: {}
     });
 
     let content =

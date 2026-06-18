@@ -10,7 +10,8 @@ import { getTools } from "../mcp/mcpToolsAdapter";
 import { createBpmnAgent } from "../agents/createBpmnAgent";
 import { ParsedJsonAgentConfig, parseJsonAgentConfig } from "./jsonAgentConfig";
 import { asArray, getLastText, selectTools } from "./utils";
-import { IExpression, ParsedJsonTaskConfig, parseJsonTaskConfig, SemTalkAssignment } from "./jsonTaskConfig";
+import { IExpression, ParsedJsonTaskConfig, parseJsonTaskConfig, SemTalkAssignment, SemTalkOperator } from "./jsonTaskConfig";
+import { interrupt } from "@langchain/langgraph";
 
 function buildGatewayRoute(gatewayId: string, flows: any[]) {
   return (state: any) => {
@@ -149,7 +150,7 @@ function applyAssignmentExpression(proc: any, expression: IExpression[], updates
             if (Array.isArray(value)) {
               proc[value2] = value.pop();
               changedVariables.add(value2);
-          }
+            }
           } catch (e) { }
           break;
         }
@@ -214,14 +215,224 @@ function applyAssignmentExpression(proc: any, expression: IExpression[], updates
       }
     }
   }
-    // create LangGraph update
-   for (const name of changedVariables) {
+  // create LangGraph update
+  for (const name of changedVariables) {
     updates[name] = proc[name];
   }
-
   return updates;
-
 }
+
+export function testConditionExpression(proc: any, expression: IExpression[]): boolean {
+  let res = true;
+  for (let expr of expression) {
+    let obj1 = expr["var"];
+    let obj2 = expr["val"];
+    let op = expr["op"];
+    let value1: any = "";
+    let value2: any = "";
+
+    let varname = obj1;
+    let attr1 = "";
+    let pkt1 = varname.indexOf(".");
+    if (pkt1 > -1) {
+      attr1 = varname.substring(pkt1 + 1);
+      varname = varname.substring(0, pkt1);
+    }
+    if (attr1) {
+    } else {
+      value1 = (proc as any)[varname];
+    }
+    let valname = obj2;
+    let attr2 = "";
+    let pkt2 = valname.indexOf(".");
+    if (pkt2 > -1) {
+      attr2 = valname.substring(pkt2 + 1);
+      valname = valname.substring(0, pkt2);
+    }
+    if (attr2) {
+      switch (valname) {
+        default: {
+          let inst2 = (proc as any)[valname];
+          if (inst2) {
+            if (attr2) {
+              value2 = inst2.inst.GetValue(attr2);
+            }
+          }
+        }
+      }
+    } else {
+      if ((proc as any)[valname] !== undefined) {
+        value2 = (proc as any)[valname];
+      } else {
+        value2 = valname;
+      }
+    }
+
+    if (value1 && typeof value1 !== 'boolean' && !isNaN(Number(value1))) value1 = Number(value1);
+    if (value2 && typeof value2 !== 'boolean' && !isNaN(Number(value2))) value2 = Number(value2);
+    if (value1 === 'true') value1 = true;
+    if (value1 === 'false') value1 = false;
+    if (value2 === 'true') value2 = true;
+    if (value2 === 'false') value2 = false;
+    if (value1 === 'null') value1 = null;
+    if (value2 === 'null') value2 = null;
+    if (value1 === 'undefined') value1 = undefined;
+    if (value2 === 'undefined') value2 = undefined;
+
+    if (valname.startsWith('"') && valname.startsWith('"')) {
+      value2 = valname.substring(1, valname.length - 1);
+    } else {
+      if (valname.startsWith("'") && valname.startsWith("'")) {
+        value2 = valname.substring(1, valname.length - 1);
+      }
+    }
+
+    let operator: SemTalkOperator = op as SemTalkOperator;
+    // for (let ind in SemTalkOperator) {
+    //   if (SemTalkOperator.)
+    // }
+    switch (operator) {
+      case SemTalkOperator.contains: {
+        try {
+          res = value1.indexOf(value2) > -1;
+        } catch (e) { }
+        break;
+      }
+      case SemTalkOperator.eq: {
+        res = (value1 === value2);
+        break;
+      }
+      case SemTalkOperator.ne: {
+        res = (value1 !== value2);
+        break;
+      }
+      case SemTalkOperator.gt: {
+        res = (value1 > value2);
+        break;
+      }
+      case SemTalkOperator.lt: {
+        res = (value1 < value2);
+        break;
+      }
+      case SemTalkOperator.ge: {
+        res = (value1 >= value2);
+        break;
+      }
+      case SemTalkOperator.le: {
+        res = (value1 <= value2);
+        break;
+      }
+      // case SemTalkOperator.is: {
+      //   try {
+      //     let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
+      //     if (cls && obj.ObjectBase.IsInstance(value1)) {
+      //       res = (value1 as ISemTalkInstance).IsInstance(cls);
+      //     }
+      //   } catch (e) { }
+      //   break;
+      // }
+      // case SemTalkOperator.isnot: {
+      //   try {
+      //     let cls = obj.ObjectBase.FindBusinessClass("Ob#" + value2);
+      //     if (cls && obj.ObjectBase.IsInstance(value1)) {
+      //       res = !(value1 as ISemTalkInstance).IsInstance(cls);
+      //     }
+      //   } catch (e) { }
+      //   break;
+      // }
+      case SemTalkOperator.in: {
+        try {
+          let list = value2.split(";");
+          res = list.indexOf(value1) > -1;
+        } catch (e) { }
+        break;
+      }
+      case SemTalkOperator.ni: {
+        try {
+          let list = value2.split(";");
+          res = list.indexOf(value1) < 0;
+        } catch (e) { }
+        break;
+      }
+      case SemTalkOperator.and: {
+        try {
+          res = value1 && value2;
+        } catch (e) { }
+        break;
+      }
+      case SemTalkOperator.or: {
+        try {
+          res = value1 || value2;
+        } catch (e) { }
+        break;
+      }
+      case SemTalkOperator.not: {
+        try {
+          res = value1 === !value2;
+        } catch (e) { }
+        break;
+      }
+    }
+    console.debug(obj1, op, value2, res);
+    if (!res) {
+      return false;
+    }
+  }
+  return res;
+}
+
+
+function userTaskNode(state: any) {
+  return interrupt({
+    type: "adaptiveCard",
+    card: {
+      $schema: "...",
+      type: "AdaptiveCard",
+      body: [
+        {
+          type: "Input.Text",
+          id: "customerName",
+          label: "Customer name"
+        }
+      ],
+      actions: [
+        {
+          type: "Action.Submit",
+          title: "Submit"
+        }
+      ]
+    }
+  });
+}
+
+async function expressionTaskNode(task: ParsedJsonTaskConfig) {
+  return async (state: any) => {
+    let variables = state.processVariables;
+    // console.log(task.name, 'Global Variables:', variables); // Example usage - logging
+    const updates: any = {};
+
+    applyAssignmentExpression(variables, task.AssignmentExpression, updates);
+    return {
+      processVariables: updates
+    };
+  };
+}
+
+async function serviceTaskNode(state:any) {
+
+  const response = await fetch(
+    "https://api/customer"
+  );
+
+  const customer = await response.json();
+
+  return {
+    processVariables:{
+      customer
+    }
+  };
+}
+
 function createTaskNode(
   task: ParsedJsonTaskConfig,
   agentConfig: ParsedJsonAgentConfig,
@@ -247,19 +458,22 @@ function createTaskNode(
   }
 
   return async (state: any) => {
+
+    userTaskNode(state);
+    
     // Accessing processVariables.global
     const historyMessages = Array.isArray(state.messages)
       ? state.messages
       : [];
-    if (!state.processVariables) {
-      state.processVariables = {};
-    }
+    // if (!state.processVariables) {
+    //   state.processVariables = {};
+    // }
     state.processVariables["userQuery"] = state.userQuery || "";
     let variables = state.processVariables;
     if (!variables) {
       variables = {}
     }
-    console.log('Global Variables:', variables); // Example usage - logging
+    console.log(task.name, 'Global Variables:', variables); // Example usage - logging
 
     // Reading inputs from the task configuration
     const taskInputs = task.inputs || [];
@@ -297,7 +511,7 @@ function createTaskNode(
           ...historyMessages,
           new HumanMessage(userPrompt)
         ],
-        variables: variables,
+        processVariables: variables,
       },
       {
         configurable: {
@@ -330,14 +544,6 @@ function createTaskNode(
         updates[k] = structuredResult[k]
       }
     }
-    // Object.entries(taskOutputs).forEach(([key, outputParam]) => {
-    //   globalVariables[outputParam as string] = structuredResult[key];
-    // });
-
-
-    // Write the updated globalVariables back to the state
-    // let processVariables = state.processVariables;
-    // processVariables.global = variables; // This line updates the state
 
     applyAssignmentExpression(variables, task.AssignmentExpression, updates);
 
@@ -388,7 +594,10 @@ export function createJSONStateGraph(
   const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     userQuery: Annotation<string>(),
-    finalResponse: Annotation<string>(),
+    finalResponse: Annotation<string>({
+      value: (a, b) => b,
+      default: () => ""
+    }),
     processVariables: Annotation<Record<string, any>>({
       reducer: (x, y) => ({ ...x, ...y }),
       default: () => ({}),
@@ -439,11 +648,44 @@ export function createJSONStateGraph(
     const routeFn = (state: any) => {
       const lastText = state.messages[state.messages.length - 1]?.content?.toLowerCase() || "";
       const outgoing = flows.filter((f: any) => f.sourceRef === gwId);
-
       for (const f of outgoing) {
         if (f.name && lastText.includes(f.name.toLowerCase())) return f.targetRef;
+        if (f.condition) {
+          const expr: IExpression[] = JSON.parse(f.condition);
+          const variables = state.processVariables;
+          // TODO: handle datatypes "and"
+          let test: boolean = testConditionExpression(variables, expr);
+          if (test) {
+            return f.targetRef;
+          }
+        }
       }
-      return outgoing[0]?.targetRef ?? END;
+      // 2. Default flow
+      const defaultFlow = outgoing.find(
+        (f: any) => f.isDefault
+      );
+
+      if (defaultFlow) {
+        return defaultFlow.targetRef;
+      }
+
+
+      // 3. Exactly one unconditional flow
+      const unconditional = outgoing.filter(
+        (f: any) => !f.condition
+      );
+
+      if (unconditional.length === 1) {
+        return unconditional[0].targetRef;
+      }
+
+      throw new Error(
+        `No valid outgoing flow from gateway ${gwId}`
+      );
+      // 4. Nothing selected
+      // return END;
+
+      // return outgoing[0]?.targetRef ?? END;
     };
 
     graph = graph.addConditionalEdges(gwId, routeFn);
@@ -484,7 +726,13 @@ export function createJSONStateGraph(
   // }
 
   for (const flow of flows) {
-    graph = graph.addEdge(String(flow.sourceRef), String(flow.targetRef));
+    const source = gateways.find(
+      n => n.id === flow.sourceRef
+    );
+
+    if (source?.type === "exclusiveGateway") {
+      continue;
+    } graph = graph.addEdge(String(flow.sourceRef), String(flow.targetRef));
   }
 
   // for (const endEvent of endEvents) {

@@ -194,11 +194,6 @@
                         }
                     },
                     {
-                        "id": "df8e6003-8acc-ca30-6f37-106cbedc22a2",
-                        "sourceRef": "ed8bbe22-5e55-15c0-2699-f237f98805e6",
-                        "targetRef": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6"
-                    },
-                    {
                         "id": "ca15343a-d7ed-9be2-c473-bc749c0c95c3",
                         "sourceRef": "7bf04576-740f-bb69-2869-47e43d05dfbf",
                         "targetRef": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6"
@@ -428,12 +423,6 @@
                         "id": "3b4b9daf-2923-3d0c-4046-729f13573368",
                         "elementid": "73ea174b-8b7c-4863-1229-68035ce8cfa1",
                         "style": "shape=flexArrow;edgeStyle=Manhattan;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;custom=1;elbow=vertical;labelWidth=0;",
-                        "waypoints": []
-                    },
-                    {
-                        "id": "2dec05cc-ddd0-059a-5c5e-cba89822345c",
-                        "elementid": "df8e6003-8acc-ca30-6f37-106cbedc22a2",
-                        "style": "shape=flexArrow;edgeStyle=orthogonalEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;custom=1;labelWidth=0;",
                         "waypoints": []
                     },
                     {
