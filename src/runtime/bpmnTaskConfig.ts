@@ -4,6 +4,8 @@ export type ParsedBpmnTaskConfig = {
   id: string;
   name: string;
   promptTemplate: string;
+  cardPayload?: Record<string, any>;
+  cardPayloadDefined: boolean;
   systemPrompt: string;
   systemPromptDefined: boolean;
   laneId?: string;
@@ -29,6 +31,12 @@ export function parseBpmnTaskConfig(
   const taskSystemPrompt = toStringValue(metadata.systemPrompt);
   const systemPromptDefined = Object.prototype.hasOwnProperty.call(metadata, "systemPrompt");
 
+  const cardPayloadValue = parseJsonValue(metadata.cardPayload ?? metadata.adaptiveCard ?? metadata.card);
+  const cardPayloadDefined =
+    Object.prototype.hasOwnProperty.call(metadata, "cardPayload") ||
+    Object.prototype.hasOwnProperty.call(metadata, "adaptiveCard") ||
+    Object.prototype.hasOwnProperty.call(metadata, "card");
+
   const modelDefined = Object.prototype.hasOwnProperty.call(metadata, "model");
   const temperatureDefined = Object.prototype.hasOwnProperty.call(metadata, "temperature");
   const toolFilterDefined =
@@ -40,6 +48,8 @@ export function parseBpmnTaskConfig(
     id: String(task?.id ?? ""),
     name: String(task?.name ?? task?.id ?? "BPMN task"),
     promptTemplate,
+    cardPayload: cardPayloadValue,
+    cardPayloadDefined,
     systemPrompt: taskSystemPrompt ?? "",
     systemPromptDefined,
     laneId,
@@ -50,4 +60,24 @@ export function parseBpmnTaskConfig(
     toolNames: toStringList(metadata.tools ?? metadata.toolNames ?? metadata.toolList),
     toolFilterDefined,
   } satisfies ParsedBpmnTaskConfig;
+}
+
+function parseJsonValue(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof value === "object") {
+    return value as Record<string, any>;
+  }
+
+  return undefined;
 }

@@ -4,6 +4,7 @@ import {
   MessagesAnnotation,
   START,
   StateGraph,
+  MemorySaver,
 } from "@langchain/langgraph";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { getTools } from "../mcp/mcpToolsAdapter";
@@ -12,6 +13,8 @@ import { ParsedJsonAgentConfig, parseJsonAgentConfig } from "./jsonAgentConfig";
 import { asArray, getLastText, selectTools } from "./utils";
 import { IExpression, ParsedJsonTaskConfig, parseJsonTaskConfig, SemTalkAssignment, SemTalkOperator } from "./jsonTaskConfig";
 import { interrupt } from "@langchain/langgraph";
+
+const jsonGraphCheckpointer = new MemorySaver();
 
 function buildGatewayRoute(gatewayId: string, flows: any[]) {
   return (state: any) => {
@@ -382,27 +385,162 @@ export function testConditionExpression(proc: any, expression: IExpression[]): b
 }
 
 
-function userTaskNode(state: any) {
-  return interrupt({
+function buildAdaptiveCard(task: ParsedJsonTaskConfig) {
+  if (task.cardPayload) {
+    return task.cardPayload;
+  }
+
+  const outputFields = (task.outputs ?? []).length
+    ? task.outputs
+    : ["Request"];
+  const classifiedFields = outputFields.map((outputName) => ({
+    name: outputName,
+    required: isRequiredOutputField(outputName),
+    inputType: inferInputType(outputName),
+  }));
+  const requiredFields = classifiedFields.filter((field) => field.required);
+  const optionalFields = classifiedFields.filter((field) => !field.required);
+
+  return {
+    type: "AdaptiveCard",
+    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+    version: "1.5",
+    body: [
+      {
+        type: "TextBlock",
+        text: `User task: ${task.name}`,
+        wrap: true,
+        weight: "Bolder",
+      },
+      {
+        type: "TextBlock",
+        text: "Enter the requested values to continue the process.",
+        wrap: true,
+        spacing: "Small",
+      },
+      ...renderFieldGroup("Required", requiredFields),
+      ...renderFieldGroup("Optional", optionalFields),
+    ],
+    actions: [
+      {
+        type: "Action.Submit",
+        title: "Complete task",
+        data: {
+          action: "completeUserTask",
+          taskId: task.id,
+          taskName: task.name,
+          outputFields,
+        },
+      },
+    ],
+  };
+}
+
+function renderFieldGroup(
+  label: string,
+  fields: Array<{
+    name: string;
+    required: boolean;
+    inputType: "Input.Text" | "Input.Number";
+  }>,
+) {
+  if (!fields.length) {
+    return [];
+  }
+
+  return [
+    {
+      type: "TextBlock",
+      text: label,
+      wrap: true,
+      spacing: "Medium",
+      weight: "Bolder",
+    },
+    ...fields.flatMap((field) => [
+      {
+        type: "TextBlock",
+        text: field.required ? field.name : `${field.name} (optional)`,
+        wrap: true,
+        spacing: "Medium",
+      },
+      {
+        type: field.inputType,
+        id: outputFieldId(field.name),
+        placeholder: `Type your ${field.name} here`,
+        ...(field.inputType === "Input.Text" ? { isMultiline: true } : {}),
+      },
+    ]),
+  ];
+}
+
+function userTaskNode(task: ParsedJsonTaskConfig, state: any) {
+  const response = interrupt({
     type: "adaptiveCard",
-    card: {
-      $schema: "...",
-      type: "AdaptiveCard",
-      body: [
-        {
-          type: "Input.Text",
-          id: "customerName",
-          label: "Customer name"
-        }
-      ],
-      actions: [
-        {
-          type: "Action.Submit",
-          title: "Submit"
-        }
-      ]
-    }
+    card: buildAdaptiveCard(task),
   });
+
+  const responseData =
+    response && typeof response === "object" ? response : { value: response };
+
+  // const updates: Record<string, any> = {
+  //   ...responseData,
+  //   userTaskResponse: response,
+  // };
+  const updates: Record<string, any> = {};
+
+  for (const outputName of task.outputs ?? []) {
+    const outputValue =
+      responseData[outputName] ??
+      responseData[outputFieldId(outputName)] ??
+      responseData.Request ??
+      responseData.value ??
+      responseData.taskValue;
+
+    if (outputValue !== undefined) {
+      updates[outputName] = outputValue;
+    }
+  }
+
+  return {
+    processVariables: updates,
+  };
+}
+
+function outputFieldId(outputName: string) {
+  return String(outputName)
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+function inferInputType(outputName: string): "Input.Text" | "Input.Number" {
+  const normalized = String(outputName).toLowerCase();
+
+  if (
+    /(^|_|\b)(age|count|amount|number|qty|quantity|total|score|year|month|day|price|cost|limit|size|rank|score)(_|$|\b)/.test(
+      normalized
+    )
+  ) {
+    return "Input.Number";
+  }
+
+  return "Input.Text";
+}
+
+function isRequiredOutputField(outputName: string) {
+  const normalized = String(outputName).toLowerCase();
+
+  if (
+    normalized.includes("optional") ||
+    normalized.includes("maybe") ||
+    normalized.includes("secondary") ||
+    normalized.includes("alternate")
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 async function expressionTaskNode(task: ParsedJsonTaskConfig) {
@@ -418,7 +556,7 @@ async function expressionTaskNode(task: ParsedJsonTaskConfig) {
   };
 }
 
-async function serviceTaskNode(state:any) {
+async function serviceTaskNode(state: any) {
 
   const response = await fetch(
     "https://api/customer"
@@ -427,7 +565,7 @@ async function serviceTaskNode(state:any) {
   const customer = await response.json();
 
   return {
-    processVariables:{
+    processVariables: {
       customer
     }
   };
@@ -459,8 +597,19 @@ function createTaskNode(
 
   return async (state: any) => {
 
-    userTaskNode(state);
-    
+    let updates: any = {};
+
+
+    switch (task.tasktype) {
+      case "User": {
+        let res = userTaskNode(task, state);
+        updates = res.processVariables;
+      }
+      default: {
+      }
+    }
+
+
     // Accessing processVariables.global
     const historyMessages = Array.isArray(state.messages)
       ? state.messages
@@ -473,78 +622,84 @@ function createTaskNode(
     if (!variables) {
       variables = {}
     }
+    for (const k in updates) {
+      if (updates[k] !== undefined) {
+        variables[k] = updates[k]
+      }
+    }
     console.log(task.name, 'Global Variables:', variables); // Example usage - logging
 
-    // Reading inputs from the task configuration
-    const taskInputs = task.inputs || [];
-    const taskOutputs = task.outputs || [];
+    let finalMessage: any = null;
 
-    // Building a prompt that incorporates input values
-    const inputValues = taskInputs.map(k => {
-      return k + ":" + (variables[k as string] || "[undefined]");
-    }).join("\n");
+    if (task.tasktype !== "User") {
+      // Reading inputs from the task configuration
+      const taskInputs = task.inputs || [];
+      const taskOutputs = task.outputs || [];
 
-    let outputTemplate: any = {};
+      // Building a prompt that incorporates input values
+      const inputValues = taskInputs.map(k => {
+        return k + ":" + (variables[k as string] || "[undefined]");
+      }).join("\n");
 
-    for (let k of taskOutputs) {
-      outputTemplate[k] = "value for " + k
-    }
+      let outputTemplate: any = {};
 
-    // Construct user prompt, incorporating input values
-    let userPrompt = `BPMN task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
-    if (taskOutputs.length > 0) {
-      userPrompt += "\n Please respond with the following output format:\n" + JSON.stringify(outputTemplate);
-    }
+      for (let k of taskOutputs) {
+        outputTemplate[k] = "value for " + k
+      }
 
-    const systemMessages = [
-      new SystemMessage(agentConfig.systemPrompt),
-    ];
+      // Construct user prompt, incorporating input values
+      let userPrompt = `BPMN task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
+      if (taskOutputs.length > 0) {
+        userPrompt += "\n Please respond with the following output format:\n" + JSON.stringify(outputTemplate);
+      }
 
-    if (task.systemPromptDefined && task.systemPrompt.trim()) {
-      systemMessages.push(new SystemMessage(task.systemPrompt));
-    }
+      const systemMessages = [
+        new SystemMessage(agentConfig.systemPrompt),
+      ];
 
-    const response = await agent.invoke(
-      {
-        messages: [
-          ...systemMessages,
-          ...historyMessages,
-          new HumanMessage(userPrompt)
-        ],
-        processVariables: variables,
-      },
-      {
-        configurable: {
-          thread_id: `${threadId}:${agentConfig.id}:${task.id}`,
+      if (task.systemPromptDefined && task.systemPrompt.trim()) {
+        systemMessages.push(new SystemMessage(task.systemPrompt));
+      }
+
+      const response = await agent.invoke(
+        {
+          messages: [
+            ...systemMessages,
+            ...historyMessages,
+            new HumanMessage(userPrompt)
+          ],
+          processVariables: variables,
         },
+        {
+          configurable: {
+            thread_id: `${threadId}:${agentConfig.id}:${task.id}`,
+          },
+        }
+      );
+
+
+      // Assuming response has structured result
+      // const structuredResult = response?.result || {}; // Adapt based on your actual response structure
+
+      // Return messages for the response
+      let structuredResult: any = {};
+      const messages = response?.messages ?? [];
+      finalMessage = messages[messages.length - 1];
+      if (finalMessage.content) {
+        const trimmed = finalMessage.content.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          structuredResult = JSON.parse(finalMessage.content);
+        }
+
       }
-    );
 
-
-    // Assuming response has structured result
-    // const structuredResult = response?.result || {}; // Adapt based on your actual response structure
-
-    // Return messages for the response
-    let structuredResult: any = {};
-    const messages = response?.messages ?? [];
-    const finalMessage = messages[messages.length - 1];
-    if (finalMessage.content) {
-      const trimmed = finalMessage.content.trim();
-      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-        structuredResult = JSON.parse(finalMessage.content);
+      // Write the structured result back to globalVariables for future tasks
+      for (const k of taskOutputs) {
+        if (structuredResult[k] !== undefined) {
+          updates[k] = structuredResult[k]
+        }
       }
-
     }
-
-    const updates: any = {};
-
-    // Write the structured result back to globalVariables for future tasks
-    for (const k of taskOutputs) {
-      if (structuredResult[k] !== undefined) {
-        updates[k] = structuredResult[k]
-      }
-    }
-
     applyAssignmentExpression(variables, task.AssignmentExpression, updates);
 
     return {
@@ -558,7 +713,10 @@ export function createJSONStateGraph(
   json: string,
   _agent: any,
   systemPrompt: string,
-  threadId: string
+  threadId: string,
+  options?: {
+    debugStepper?: boolean;
+  }
 ) {
   const langgraph: any = JSON.parse(json);
   if (langgraph!.bpmn!.processes.length === 0) {
@@ -739,5 +897,21 @@ export function createJSONStateGraph(
   //   graph = graph.addEdge(String(endEvent.id), END);
   // }
 
-  return graph.compile();
+  const debugStepper = options?.debugStepper ?? false;
+  const compileOptions = debugStepper
+    ? {
+        checkpointer: jsonGraphCheckpointer,
+        interruptBefore: [
+          ...tasks
+            .filter((task: any) => String(task.tasktype ?? "").toLowerCase() !== "user")
+            .map((task: any) => String(task.id)),
+          ...gateways.map((gateway: any) => String(gateway.id)),
+          ...endEvents.map((endEvent: any) => String(endEvent.id)),
+        ],
+      }
+    : {
+        checkpointer: jsonGraphCheckpointer,
+      };
+
+  return graph.compile(compileOptions as any);
 }

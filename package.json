@@ -29,6 +29,7 @@
         "@microsoft/agents-hosting-express": "^1.0.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "axios": "^1.13.1",
+        "botbuilder": "^4.23.3",
         "fast-xml-parser": "^5.8.0"
     },
     "devDependencies": {

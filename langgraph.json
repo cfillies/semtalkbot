@@ -67,10 +67,10 @@
                             "UserNumber": "1",
                             "promptTemplate": "Collect the user's request in plain text.",
                             "systemPrompt": "",
-                            "AssignmentExpression": "[{\"var\":\"Request\",\"op\":\"assignment\",\"val\":\"userQuery\"}]"
+                            "AssignmentExpression_1": "[{\"var\":\"Request\",\"op\":\"assignment\",\"val\":\"userQuery\"}]"
                         },
                         "type": "task",
-                        "tasktype": "None",
+                        "tasktype": "User",
                         "outputs": [
                             "Request"
                         ],

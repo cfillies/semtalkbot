@@ -49,7 +49,10 @@ export interface IExpression {
 export type ParsedJsonTaskConfig = {
   id: string;
   name: string;
+  tasktype: string;
   promptTemplate: string;
+  cardPayload?: Record<string, any>;
+  cardPayloadDefined: boolean;
   systemPrompt: string;
   systemPromptDefined: boolean;
   laneId?: string;
@@ -78,6 +81,12 @@ export function parseJsonTaskConfig(
   const taskSystemPrompt = toStringValue(metadata.systemPrompt);
   const systemPromptDefined = metadata.systemPrompt !== undefined && metadata.systemPrompt !== "";
 
+  const cardPayloadValue = parseJsonValue(metadata.cardPayload ?? metadata.adaptiveCard ?? metadata.card);
+  const cardPayloadDefined =
+    metadata.cardPayload !== undefined ||
+    metadata.adaptiveCard !== undefined ||
+    metadata.card !== undefined;
+
   const modelDefined = metadata.model !== undefined && metadata.model !== "";
   const temperatureDefined = metadata.temperature !== undefined && metadata.temperature !== "";
   const toolFilterDefined = metadata.toolNames !== undefined && metadata.toolNames !== "";
@@ -86,7 +95,10 @@ export function parseJsonTaskConfig(
   return {
     id: String(task?.id ?? ""),
     name: String(task?.name ?? task?.id ?? "BPMN task"),
+    tasktype: String(task?.tasktype ?? "None"),
     promptTemplate,
+    cardPayload: cardPayloadValue,
+    cardPayloadDefined,
     systemPrompt: taskSystemPrompt ?? "",
     systemPromptDefined,
     laneId,
@@ -100,6 +112,26 @@ export function parseJsonTaskConfig(
     outputs: task.outputs,
     AssignmentExpression:assignmentExpression,
   } satisfies ParsedJsonTaskConfig;
+}
+
+function parseJsonValue(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof value === "object") {
+    return value as Record<string, any>;
+  }
+
+  return undefined;
 }
 
 
