@@ -157,3 +157,5 @@ The parameter file currently expects:
 - [src/mcp/mcpToolsAdapter.ts](./src/mcp/mcpToolsAdapter.ts)
 - [infra/azure.bicep](./infra/azure.bicep)
 - [m365agents.yml](./m365agents.yml)
+
+http://localhost:3978/processes-ui
