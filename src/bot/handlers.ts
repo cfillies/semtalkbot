@@ -261,7 +261,7 @@ function normalizeFinalContent(content: any) {
   return cleaned;
 }
 
-function concatObjectValues(value: any) {
+function concatObjectValues(value: any): any {
   if (value === null || value === undefined) {
     return "";
   }

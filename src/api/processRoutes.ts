@@ -14,6 +14,10 @@ export function registerProcessRoutes(app: Express) {
     res.type("html").send(buildProcessUiHtml());
   });
 
+  app.get("/chat", (_req: Request, res: Response) => {
+    res.type("html").send(buildChatHtml());
+  });
+
   app.get("/api/processes", (_req: Request, res: Response) => {
     res.json({
       processes: listRunningProcesses(),
@@ -95,10 +99,32 @@ export function registerProcessRoutes(app: Express) {
     }
   });
 
+  function normalizeProcessStepPayload(body: any) {
+    if (!body || typeof body !== "object") {
+      return { env: {} };
+    }
+
+    if (body.resume !== undefined || body.env !== undefined) {
+      return body;
+    }
+
+    const cardPayload =
+      body.action?.data && typeof body.action.data === "object"
+        ? { ...body, ...body.action.data }
+        : body;
+
+    if (cardPayload.action === "completeUserTask" || cardPayload.taskId) {
+      return { resume: cardPayload };
+    }
+
+    return { env: body };
+  }
+
   app.post("/api/processes/:id/step", async (req: Request, res: Response) => {
     try {
       const processId = String(req.params.id);
-      const result = await stepProcess(processId, req.body ?? {});
+      const stepRequest = normalizeProcessStepPayload(req.body ?? {});
+      const result = await stepProcess(processId, stepRequest);
       if (!result) {
         res.status(404).json({ error: "Process not found" });
         return;
@@ -392,6 +418,7 @@ function buildProcessUiHtml() {
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://unpkg.com/adaptivecards@latest/dist/adaptivecards.min.js"></script>
 </head>
 <body>
   <header>
@@ -446,6 +473,13 @@ function buildProcessUiHtml() {
       </div>
 
       <section class="panel">
+        <h2>User Task</h2>
+        <div class="state-wrap" id="taskPanel">
+          <div class="state-summary">No active user task.</div>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>State & History</h2>
         <div class="state-wrap" id="details">
           <div class="state-summary">No process loaded.</div>
@@ -463,6 +497,7 @@ function buildProcessUiHtml() {
       newName: document.getElementById('newName'),
       newQuery: document.getElementById('newQuery'),
       newEnv: document.getElementById('newEnv'),
+      taskPanel: document.getElementById('taskPanel'),
       details: document.getElementById('details'),
       diagram: document.getElementById('diagram'),
       statusChip: document.getElementById('statusChip'),
@@ -538,6 +573,7 @@ function buildProcessUiHtml() {
       currentProcess = details.session;
       els.processId.value = id;
       renderDetails(details, history);
+      await renderInterrupts(details);
       els.selectedStatus.textContent = details.session
         ? ('State: ' + details.session.status + ' | Pause: ' + formatPauseReason(details.session.pauseReason) + ' | Current: ' + (details.session.currentNode || '(none)'))
         : '';
@@ -546,10 +582,10 @@ function buildProcessUiHtml() {
       refreshProcesses();
     }
 
-    async function stepProcess() {
+    async function stepProcess(stepPayload) {
       if (!els.processId.value.trim()) return;
       setStatus('stepping...');
-      const payload = parseJsonMaybe(els.newEnv.value) || {};
+      const payload = stepPayload ?? parseJsonMaybe(els.newEnv.value) ?? {};
       const res = await fetch('/api/processes/' + encodeURIComponent(els.processId.value.trim()) + '/step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -606,6 +642,51 @@ function buildProcessUiHtml() {
       }
       setStatus('started');
       refreshProcesses();
+    }
+
+    function clearTaskPanel() {
+      els.taskPanel.innerHTML = '<div class="state-summary">No active user task.</div>';
+    }
+
+    function renderAdaptiveCardTask(interrupt) {
+      if (!interrupt || !interrupt.value || interrupt.value.type !== 'adaptiveCard') {
+        clearTaskPanel();
+        return;
+      }
+
+      const cardJson = interrupt.value.card;
+      if (!cardJson) {
+        clearTaskPanel();
+        return;
+      }
+
+      const card = new AdaptiveCards.AdaptiveCard();
+      card.hostConfig = new AdaptiveCards.HostConfig({
+        fontFamily: 'Segoe UI, system-ui, sans-serif'
+      });
+      card.parse(cardJson);
+      card.onExecuteAction = async (action) => {
+        const payload = action.data || {};
+        if (action.title) {
+          payload.actionTitle = action.title;
+        }
+
+        const matchedAction = action.toJSON ? action.toJSON() : action;
+        if (matchedAction && matchedAction.data) {
+          Object.assign(payload, matchedAction.data);
+        }
+
+        await stepProcess(payload);
+      };
+
+      els.taskPanel.innerHTML = '';
+      els.taskPanel.appendChild(card.render());
+    }
+
+    async function renderInterrupts(details) {
+      const interrupts = details?.state?.interrupts || details?.session?.interrupts || [];
+      const userInterrupt = interrupts.find((interrupt) => interrupt?.value?.type === 'adaptiveCard');
+      renderAdaptiveCardTask(userInterrupt);
     }
 
     async function renderDiagram(mermaidCode) {
@@ -697,6 +778,267 @@ function buildProcessUiHtml() {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
     }
+  </script>
+</body>
+</html>`;
+}
+
+function buildChatHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat Session</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #eef2ff;
+      --text: #102033;
+      --muted: #5f6b7a;
+      --accent: #2563eb;
+      --border: #d8e0ea;
+      --radius: 14px;
+      --shadow: 0 20px 45px rgba(16, 32, 51, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(30px, 4vw, 42px);
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .panel-body {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .chat-log {
+      display: grid;
+      gap: 10px;
+      max-height: 560px;
+      overflow: auto;
+    }
+
+    .bubble {
+      padding: 14px 16px;
+      border-radius: 16px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .bubble.user {
+      background: #e0f2fe;
+      justify-self: end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bubble.bot {
+      background: #f8fafc;
+      border-bottom-left-radius: 4px;
+    }
+
+    .toolbar {
+      display: grid;
+      gap: 10px;
+    }
+
+    textarea, input {
+      width: 100%;
+      min-height: 90px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 12px;
+      font: inherit;
+      resize: vertical;
+      background: #fff;
+      color: var(--text);
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+  <script src="https://unpkg.com/adaptivecards@latest/dist/adaptivecards.min.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Chat Session</h1>
+    <div class="panel">
+      <div class="panel-body">
+        <div class="meta">Session ID: <span id="sessionId">none</span></div>
+        <div class="chat-log" id="chatLog">
+          <div class="bubble bot">Open a new session or send a message to continue an existing one.</div>
+        </div>
+        <div class="toolbar">
+          <input id="existingSession" placeholder="Enter existing session ID (optional)" />
+          <textarea id="userMessage" placeholder="Type your message here..."></textarea>
+          <button id="sendBtn">Send / Start Session</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const chatLog = document.getElementById('chatLog');
+    const sessionIdEl = document.getElementById('sessionId');
+    const existingSession = document.getElementById('existingSession');
+    const userMessage = document.getElementById('userMessage');
+    const sendBtn = document.getElementById('sendBtn');
+
+    let currentSessionId = null;
+
+    function appendBubble(text, role) {
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ' + role;
+      bubble.textContent = text;
+      chatLog.appendChild(bubble);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function appendCard(cardJson) {
+      const adaptiveCard = new AdaptiveCards.AdaptiveCard();
+      adaptiveCard.hostConfig = new AdaptiveCards.HostConfig({ fontFamily: 'Segoe UI, system-ui, sans-serif' });
+      adaptiveCard.parse(cardJson);
+      adaptiveCard.onExecuteAction = async (action) => {
+        const payload = action.data || {};
+        if (action.toJSON) {
+          const serialized = action.toJSON();
+          if (serialized.data) {
+            Object.assign(payload, serialized.data);
+          }
+        }
+        await sendStep(payload);
+      };
+      chatLog.appendChild(adaptiveCard.render());
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    async function sendStep(payload) {
+      if (!currentSessionId) {
+        appendBubble('No active session. Start one first.', 'bot');
+        return;
+      }
+      const res = await fetch('/api/processes/' + encodeURIComponent(currentSessionId) + '/step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      processResponse(data);
+    }
+
+    async function startSession() {
+      const message = userMessage.value.trim();
+      const payload = {
+        userQuery: message || undefined,
+        env: {},
+        debugStepper: true,
+      };
+      const res = await fetch('/api/processes/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.session?.id) {
+        currentSessionId = data.session.id;
+        sessionIdEl.textContent = currentSessionId;
+      }
+      processResponse(data);
+    }
+
+    function processResponse(data) {
+      const session = data.session || data;
+      if (session?.status) {
+        appendBubble('Status: ' + session.status + ' | Current: ' + (session.currentNode || '(none)'), 'bot');
+      }
+      const interrupts = data.state?.interrupts || session?.interrupts || [];
+      const cardInterrupt = interrupts.find(i => i?.value?.type === 'adaptiveCard');
+      if (cardInterrupt) {
+        appendCard(cardInterrupt.value.card);
+        return;
+      }
+      if (data.result?.finalResponse) {
+        appendBubble(data.result.finalResponse, 'bot');
+      } else if (data.result?.finalResponse === undefined && !cardInterrupt) {
+        appendBubble('Process advanced. Reload session state at /processes-ui or /api/processes/' + currentSessionId, 'bot');
+      }
+    }
+
+    sendBtn.onclick = async () => {
+      const explicitSession = existingSession.value.trim();
+      const message = userMessage.value.trim();
+
+      if (explicitSession) {
+        currentSessionId = explicitSession;
+        sessionIdEl.textContent = currentSessionId;
+        if (message) {
+          appendBubble(message, 'user');
+          try {
+            const res = await fetch('/api/processes/' + encodeURIComponent(currentSessionId) + '/step', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: [{ role: 'user', content: message }] }),
+            });
+            const data = await res.json();
+            processResponse(data);
+          } catch (err) {
+            appendBubble('Error: ' + (err?.message || String(err)), 'bot');
+          }
+        } else {
+          const res = await fetch('/api/processes/' + encodeURIComponent(currentSessionId));
+          const data = await res.json();
+          processResponse(data);
+        }
+      } else {
+        appendBubble(message || 'Start process', 'user');
+        await startSession();
+      }
+
+      userMessage.value = '';
+    };
   </script>
 </body>
 </html>`;

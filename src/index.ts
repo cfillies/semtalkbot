@@ -5,7 +5,7 @@ import { registerProcessRoutes } from "./api/processRoutes";
 
 async function main() {
   // 4. BOT WRAPPER
-  const botHandler = await createMAFBot("debug");
+  const botHandler = await createMAFBot("json");
 
   const mafApp = new MAFAgentApplicationBuilder().build();
 

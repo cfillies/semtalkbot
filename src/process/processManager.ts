@@ -154,7 +154,18 @@ export async function startProcess(request: ProcessStartRequest) {
   const result = await graph.invoke(
     {
       userQuery: request.userQuery ?? "",
-      processVariables: request.env ?? {},
+      processVariables: (() => {
+        const vars = { ...(request.env ?? {}) } as Record<string, any>;
+        // Ensure messages channel exists so EphemeralValue reads don't throw
+        if (vars.messages === undefined) {
+          if (request.userQuery) {
+            vars.messages = [{ role: 'user', content: request.userQuery }];
+          } else {
+            vars.messages = [];
+          }
+        }
+        return vars;
+      })(),
     },
     {
       configurable: {
@@ -165,11 +176,22 @@ export async function startProcess(request: ProcessStartRequest) {
 
   session.updatedAt = new Date().toISOString();
 
-  const state = await graph.getState({
-    configurable: {
-      thread_id: session.threadId,
-    },
-  });
+  let state: any;
+  try {
+    state = await graph.getState({
+      configurable: {
+        thread_id: session.threadId,
+      },
+    });
+  } catch (e: any) {
+    // Handle EmptyChannelError coming from langgraph internals
+    if (e && e.name === "EmptyChannelError") {
+      console.warn("Warning: EmptyChannelError while getting initial state; using empty state.", e);
+      state = {};
+    } else {
+      throw e;
+    }
+  }
 
   if (isTerminalState(state)) {
     session.status = "completed";
@@ -211,10 +233,25 @@ export async function stepProcess(id: string, request: ProcessStepRequest) {
       ? new Command({
           resume: resumeValue,
           update: {
-            processVariables: {
-              ...currentEnv,
-              ...request.env,
-            },
+            processVariables: (() => {
+              const merged = { ...currentEnv, ...request.env } as Record<string, any>;
+              // If a userQuery was provided in env, append it to messages channel
+              try {
+                const userQ = request.env?.userQuery;
+                if (userQ !== undefined) {
+                  const msgs = Array.isArray(currentEnv?.messages) ? [...currentEnv.messages] : [];
+                  msgs.push({ role: 'user', content: userQ });
+                  merged.messages = msgs;
+                  // remove the transient userQuery field to avoid duplication
+                  if (merged.userQuery !== undefined) {
+                    delete merged.userQuery;
+                  }
+                }
+              } catch (e) {
+                // ignore
+              }
+              return merged;
+            })(),
           },
         })
       : new Command({ resume: resumeValue });
@@ -222,7 +259,17 @@ export async function stepProcess(id: string, request: ProcessStepRequest) {
   const result = await session.graph.invoke(command, config);
   session.updatedAt = new Date().toISOString();
 
-  const stateAfter = await session.graph.getState(config);
+  let stateAfter: any;
+  try {
+    stateAfter = await session.graph.getState(config);
+  } catch (e: any) {
+    if (e && e.name === "EmptyChannelError") {
+      console.warn("Warning: EmptyChannelError while getting state after step; using previous state.", e);
+      stateAfter = stateBefore;
+    } else {
+      throw e;
+    }
+  }
   if (isTerminalState(stateAfter)) {
     session.status = "completed";
     sessions.delete(id);
