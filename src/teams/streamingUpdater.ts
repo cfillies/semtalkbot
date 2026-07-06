@@ -121,6 +121,16 @@ export async function createStreamingUpdater(
 
       unsubscribe();
 
+      // Remove the transient status activity when we hand off to a card/interrupt.
+      try {
+        if (sent?.id) {
+          await context.deleteActivity(sent.id);
+        }
+      } catch (err) {
+        // Some channels/hosts may not support deletion; ignore and continue.
+        console.warn("[STREAMER] delete status failed", err);
+      }
+
     },
 
     async final(

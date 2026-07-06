@@ -1,4 +1,4 @@
-import { parseTemperature, toStringList, toStringValue } from "./utils";
+import { parseTemperature, toStringList, toStringValue } from "../utils";
 
 export type ParsedBpmnAgentConfig = {
   id: string;

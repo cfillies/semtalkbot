@@ -31,6 +31,33 @@ function buildGatewayRoute(gatewayId: string, flows: any[]) {
   };
 }
 
+function parseGatewayCondition(condition: unknown): IExpression[] {
+  if (!condition) {
+    return [];
+  }
+
+  if (Array.isArray(condition)) {
+    return condition as IExpression[];
+  }
+
+  if (typeof condition === "string") {
+    const trimmed = condition.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? (parsed as IExpression[]) : [];
+    } catch (err) {
+      console.warn("[BPMN] invalid gateway condition JSON", err);
+      return [];
+    }
+  }
+
+  return [];
+}
+
 function buildAgentTopology(process: any, fallbackSystemPrompt: string) {
   const laneConfigs = new Map<string, ParsedJsonAgentConfig>();
   const taskToLaneId = new Map<string, string>();
@@ -711,8 +738,7 @@ function createTaskNode(
 
 export function createJSONStateGraph(
   json: string,
-  _agent: any,
-  systemPrompt: string,
+  fallbackSystemPrompt: string,
   threadId: string,
   options?: {
     debugStepper?: boolean;
@@ -736,7 +762,7 @@ export function createJSONStateGraph(
   const availableTools = getTools();
   const { laneConfigs, taskToLaneId, defaultAgentConfig } = buildAgentTopology(
     process,
-    systemPrompt
+    fallbackSystemPrompt
   );
 
   // const StateAnnotation = Annotation.Root({
@@ -783,7 +809,7 @@ export function createJSONStateGraph(
     const laneId = taskToLaneId.get(String(task.id));
     const laneConfig =
       (laneId ? laneConfigs.get(laneId) : undefined) ?? defaultAgentConfig;
-    const taskConfig = parseJsonTaskConfig(task, systemPrompt, laneId);
+    const taskConfig = parseJsonTaskConfig(task, fallbackSystemPrompt, laneId);
 
     graph = graph.addNode(
       taskConfig.id,
@@ -804,14 +830,25 @@ export function createJSONStateGraph(
     }));
 
     const routeFn = (state: any) => {
-      const lastText = state.messages[state.messages.length - 1]?.content?.toLowerCase() || "";
-      const outgoing = flows.filter((f: any) => f.sourceRef === gwId);
+      const lastText = getLastText(state.messages).toLowerCase();
+      const outgoing = flows.filter((f: any) => String(f.sourceRef) === String(gwId));
+
+      if (!outgoing.length) {
+        console.warn(`[BPMN] gateway ${gwId} has no outgoing flow; ending process path`);
+        return END;
+      }
+
       for (const f of outgoing) {
-        if (f.name && lastText.includes(f.name.toLowerCase())) return f.targetRef;
+        if (f.name && lastText.includes(String(f.name).toLowerCase())) {
+          return f.targetRef;
+        }
+
         if (f.condition) {
-          const expr: IExpression[] = JSON.parse(f.condition);
+          const expr = parseGatewayCondition(f.condition);
+          if (!expr.length) {
+            continue;
+          }
           const variables = state.processVariables;
-          // TODO: handle datatypes "and"
           let test: boolean = testConditionExpression(variables, expr);
           if (test) {
             return f.targetRef;
@@ -820,7 +857,10 @@ export function createJSONStateGraph(
       }
       // 2. Default flow
       const defaultFlow = outgoing.find(
-        (f: any) => f.isDefault
+        (f: any) =>
+          Boolean(f.isDefault) ||
+          Boolean(f.attributes?.isDefault) ||
+          Boolean(f.attributes?.default)
       );
 
       if (defaultFlow) {
@@ -837,13 +877,12 @@ export function createJSONStateGraph(
         return unconditional[0].targetRef;
       }
 
-      throw new Error(
-        `No valid outgoing flow from gateway ${gwId}`
+      // Avoid hard failure when a model omits a default branch and none of
+      // the conditions match; continue on first defined edge.
+      console.warn(
+        `[BPMN] no matching outgoing flow from gateway ${gwId}; falling back to first outgoing edge`
       );
-      // 4. Nothing selected
-      // return END;
-
-      // return outgoing[0]?.targetRef ?? END;
+      return outgoing[0]?.targetRef ?? END;
     };
 
     graph = graph.addConditionalEdges(gwId, routeFn);

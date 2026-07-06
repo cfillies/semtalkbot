@@ -2,6 +2,9 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { Command } from "@langchain/langgraph";
 import { createJSONStateGraph } from "../runtime/createJSONStateGraph";
+import { find } from "./mongo";
+import { ModelAttribute, OB2JSON, ObjectBase, SemTalkComposeOrder, SemTalkLanguage } from "@semtalk/tbase";
+import { bpmnToJson } from "./jsonbpmn";
 
 export type ProcessStatus = "running" | "stopped" | "completed" | "failed";
 
@@ -20,9 +23,17 @@ export type ProcessSession = {
 export type ProcessStartRequest = {
   name?: string;
   definition?: string;
+  definitionFile?: string;
   debugStepper?: boolean;
   userQuery?: string;
+  sessionId?: string;
   env?: Record<string, any>;
+  database?: string;
+  collection?: string;
+  diagramId?: string;
+  modelName?: string;
+  language?: string;
+  connectToken?: string;
 };
 
 export type ProcessStepRequest = {
@@ -126,12 +137,15 @@ export async function visualizeProcess(id: string) {
 }
 
 export async function startProcess(request: ProcessStartRequest) {
-  const definition = request.definition ?? fs.readFileSync("langgraph.json", "utf-8");
-  const sessionId = randomUUID();
+  if (!request.name) {
+    request.name = "langgraph";
+  }
+  const name = request.name;
+  const definition = await resolveProcessDefinition(request);
+  const sessionId = request.sessionId ?? randomUUID();
   const debugStepper = request.debugStepper ?? true;
   const graph = createJSONStateGraph(
     definition,
-    null,
     "",
     sessionId,
     { debugStepper }
@@ -139,7 +153,7 @@ export async function startProcess(request: ProcessStartRequest) {
 
   const session: ProcessSession = {
     id: sessionId,
-    name: request.name ?? "json-process",
+    name,
     graph,
     threadId: sessionId,
     status: "running",
@@ -204,6 +218,90 @@ export async function startProcess(request: ProcessStartRequest) {
   };
 }
 
+async function resolveProcessDefinition(request: ProcessStartRequest) {
+  if (request.definition && request.definition.trim().length > 0) {
+    return request.definition;
+  }
+
+  const mongoDefinition = await resolveDefinitionFromMongo(request);
+  if (mongoDefinition) {
+    return JSON.stringify(mongoDefinition);
+  }
+
+  if (request.definitionFile && fs.existsSync(request.definitionFile)) {
+    return fs.readFileSync(request.definitionFile, "utf-8");
+  }
+  return fs.readFileSync(request.name + ".json", "utf-8");
+}
+
+async function resolveDefinitionFromMongo(request: ProcessStartRequest) {
+  const database = request.database ?? process.env.DATABASE ?? process.env.dbname;
+  const collection = request.collection ?? process.env.DOCUMENTS ?? process.env.documents;
+  const connectToken = request.connectToken ?? process.env.CONNECT_TOKEN ?? "";
+
+  if (!database || !collection) {
+    return null;
+  }
+
+  const diagramId = request.diagramId ?? request.env?.diagid ?? request.env?.diagramId;
+  const modelName = request.name ?? request.env?.modelname ?? request.env?.modelName;
+  const language = request.language ?? request.env?.language;
+
+  if (!(global as any).definitioncache) {
+    (global as any).definitioncache = {};
+  }
+  if ((global as any).definitioncache && (global as any).definitioncache[modelName]) {
+    return (global as any).definitioncache[modelName];
+  }
+
+  let filter: any = {};
+  filter["name"] = modelName + ".sdx";
+  if (diagramId) {
+    filter["name"] = diagramId;
+  }
+
+  try {
+    const models = await find(database, collection, filter, connectToken);
+    const definition = extractProcessDefinition(models?.[0], language);
+    if (definition) {
+      (global as any).definitioncache[modelName] = definition;
+      return definition;
+    }
+  } catch (err) {
+    console.warn("[PROCESS] Mongo definition lookup failed", err);
+  }
+  // }
+
+  return null;
+}
+
+function extractProcessDefinition(model: any, language: string): any | null {
+  let data = model.value;
+
+  let tb = new ObjectBase();
+  const o2j = new OB2JSON();
+  o2j.LoadJSON(tb, data);
+  if (language) {
+    tb.SetModelAttribute(ModelAttribute.currentnsp, language);
+    if (language === SemTalkLanguage.German) {
+      tb.SetModelAttribute(ModelAttribute.forder, SemTalkComposeOrder.NounVerb);
+    } else {
+      tb.SetModelAttribute(ModelAttribute.forder, SemTalkComposeOrder.VerbNoun);
+    }
+  }
+  for (let diag of tb.AllDiagrams()) {
+    // const diagid = diag.ID;
+    // let diag = tb.FindDiagramByID(diagid);
+    let res: any = {};
+    res["ID"] = diag.ID;
+    res["diagram"] = diag.ObjectCaption;
+    res["model"] = tb.ObjectName;
+    res["bpmn"] = bpmnToJson(tb, diag);
+    return res;
+  }
+  return null;
+}
+
 export async function stepProcess(id: string, request: ProcessStepRequest) {
   const session = sessions.get(id);
   if (!session) {
@@ -223,37 +321,37 @@ export async function stepProcess(id: string, request: ProcessStepRequest) {
       ? request.resume
       : Object.keys(request.env ?? {}).length
         ? {
-            ...currentEnv,
-            ...request.env,
-          }
+          ...currentEnv,
+          ...request.env,
+        }
         : currentEnv;
 
   const command =
     request.env && Object.keys(request.env).length > 0
       ? new Command({
-          resume: resumeValue,
-          update: {
-            processVariables: (() => {
-              const merged = { ...currentEnv, ...request.env } as Record<string, any>;
-              // If a userQuery was provided in env, append it to messages channel
-              try {
-                const userQ = request.env?.userQuery;
-                if (userQ !== undefined) {
-                  const msgs = Array.isArray(currentEnv?.messages) ? [...currentEnv.messages] : [];
-                  msgs.push({ role: 'user', content: userQ });
-                  merged.messages = msgs;
-                  // remove the transient userQuery field to avoid duplication
-                  if (merged.userQuery !== undefined) {
-                    delete merged.userQuery;
-                  }
+        resume: resumeValue,
+        update: {
+          processVariables: (() => {
+            const merged = { ...currentEnv, ...request.env } as Record<string, any>;
+            // If a userQuery was provided in env, append it to messages channel
+            try {
+              const userQ = request.env?.userQuery;
+              if (userQ !== undefined) {
+                const msgs = Array.isArray(currentEnv?.messages) ? [...currentEnv.messages] : [];
+                msgs.push({ role: 'user', content: userQ });
+                merged.messages = msgs;
+                // remove the transient userQuery field to avoid duplication
+                if (merged.userQuery !== undefined) {
+                  delete merged.userQuery;
                 }
-              } catch (e) {
-                // ignore
               }
-              return merged;
-            })(),
-          },
-        })
+            } catch (e) {
+              // ignore
+            }
+            return merged;
+          })(),
+        },
+      })
       : new Command({ resume: resumeValue });
 
   const result = await session.graph.invoke(command, config);

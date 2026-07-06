@@ -1,13 +1,13 @@
 {
     "version": "0.2.0",
     "configurations": [
-      {
-        "name": "Attach to Chrome",
-        "port": 9222,
-        "request": "attach",
-        "type": "chrome",
-        "webRoot": "${workspaceFolder}"
-    },
+        {
+            "name": "Attach to Chrome",
+            "port": 9222,
+            "request": "attach",
+            "type": "chrome",
+            "webRoot": "${workspaceFolder}"
+        },
         {
             "name": "Launch Remote in Teams (Edge)",
             "type": "msedge",
@@ -88,7 +88,9 @@
             "type": "msedge",
             "request": "launch",
             "url": "https://m365.cloud.microsoft/chat/entity1-d870f6cd-4aa5-4d42-9626-ab690c041429/${agent-hint}?auth=2&${account-hint}&developerMode=Basic",
-            "cascadeTerminateToConfigurations": ["Attach to Local Service"],
+            "cascadeTerminateToConfigurations": [
+                "Attach to Local Service"
+            ],
             "presentation": {
                 "group": "3-M365",
                 "order": 3
@@ -98,13 +100,15 @@
                 "--remote-debugging-port=9222",
                 "--no-first-run"
             ]
-            },
-            {
+        },
+        {
             "name": "(Preview) Launch Remote in Copilot (Chrome)",
             "type": "chrome",
             "request": "launch",
             "url": "https://m365.cloud.microsoft/chat/entity1-d870f6cd-4aa5-4d42-9626-ab690c041429/${agent-hint}?auth=2&${account-hint}&developerMode=Basic",
-            "cascadeTerminateToConfigurations": ["Attach to Local Service"],
+            "cascadeTerminateToConfigurations": [
+                "Attach to Local Service"
+            ],
             "presentation": {
                 "group": "3-M365",
                 "order": 4
@@ -120,7 +124,9 @@
             "type": "msedge",
             "request": "launch",
             "url": "https://m365.cloud.microsoft/chat/entity1-d870f6cd-4aa5-4d42-9626-ab690c041429/${local:agent-hint}?auth=2&${account-hint}&developerMode=Basic",
-            "cascadeTerminateToConfigurations": ["Attach to Local Service"],
+            "cascadeTerminateToConfigurations": [
+                "Attach to Local Service"
+            ],
             "presentation": {
                 "group": "all",
                 "hidden": true
@@ -136,7 +142,9 @@
             "type": "chrome",
             "request": "launch",
             "url": "https://m365.cloud.microsoft/chat/entity1-d870f6cd-4aa5-4d42-9626-ab690c041429/${local:agent-hint}?auth=2&${account-hint}&developerMode=Basic",
-            "cascadeTerminateToConfigurations": ["Attach to Local Service"],
+            "cascadeTerminateToConfigurations": [
+                "Attach to Local Service"
+            ],
             "presentation": {
                 "group": "all",
                 "hidden": true
@@ -146,6 +154,26 @@
                 "--remote-debugging-port=9223",
                 "--no-first-run"
             ]
+        },
+        {
+            "name": "Debug src/domainevents/main.ts",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--inspect-brk=9239",
+                "-r",
+                "ts-node/register"
+            ],
+            "args": [
+                "${workspaceFolder}/src/domainevents/main.ts"
+            ],
+            "cwd": "${workspaceFolder}",
+            "sourceMaps": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "internalConsoleOptions": "openOnSessionStart"
         }
     ],
     "compounds": [
@@ -211,8 +239,8 @@
                 "order": 1
             },
             "stopAll": true
-            },
-            {
+        },
+        {
             "name": "(Preview) Debug in Copilot (Chrome)",
             "configurations": [
                 "Launch in Copilot (Chrome)",

@@ -81,14 +81,19 @@ export function registerProcessRoutes(app: Express) {
       }
 
       res.json(result);
-    } catch (err: any) {
+
+     } catch (err: any) {
       res.status(500).json({
         error: err?.message ?? String(err),
       });
     }
   });
 
-  app.post("/api/processes/start", async (req: Request, res: Response) => {
+  // Optional start payload fields for Mongo-backed lookup:
+  // - database, collection, diagramId, modelName, language, connectToken
+  // Resolution order in processManager:
+  // definition -> definitionFile -> mongo lookup -> langgraph.json
+ app.post("/api/processes/start", async (req: Request, res: Response) => {
     try {
       const result = await startProcess(req.body ?? {});
       res.status(201).json(result);
@@ -458,6 +463,24 @@ function buildProcessUiHtml() {
             <label>Initial env JSON
               <textarea id="newEnv" placeholder='{"Request":"Billing"}'></textarea>
             </label>
+            <label>Mongo database (optional)
+              <input id="mongoDatabase" placeholder="semtalkonline" />
+            </label>
+            <label>Mongo collection (optional)
+              <input id="mongoCollection" placeholder="SDX" />
+            </label>
+            <label>Diagram ID (optional)
+              <input id="diagramId" placeholder="business-process-id" />
+            </label>
+            <label>Model name (optional)
+              <input id="modelName" placeholder="Order Process" />
+            </label>
+            <label>Language (optional)
+              <input id="modelLanguage" placeholder="en" />
+            </label>
+            <label>Connect token (optional)
+              <input id="connectToken" placeholder="encrypted or mongodb://..." />
+            </label>
             <div class="row">
               <button class="secondary" id="startBtn">Start Process</button>
             </div>
@@ -497,6 +520,12 @@ function buildProcessUiHtml() {
       newName: document.getElementById('newName'),
       newQuery: document.getElementById('newQuery'),
       newEnv: document.getElementById('newEnv'),
+      mongoDatabase: document.getElementById('mongoDatabase'),
+      mongoCollection: document.getElementById('mongoCollection'),
+      diagramId: document.getElementById('diagramId'),
+      modelName: document.getElementById('modelName'),
+      modelLanguage: document.getElementById('modelLanguage'),
+      connectToken: document.getElementById('connectToken'),
       taskPanel: document.getElementById('taskPanel'),
       details: document.getElementById('details'),
       diagram: document.getElementById('diagram'),
@@ -627,6 +656,12 @@ function buildProcessUiHtml() {
         userQuery: els.newQuery.value.trim() || undefined,
         env: parseJsonMaybe(els.newEnv.value) || {},
         debugStepper: true,
+        database: optionalText(els.mongoDatabase),
+        collection: optionalText(els.mongoCollection),
+        diagramId: optionalText(els.diagramId),
+        modelName: optionalText(els.modelName),
+        language: optionalText(els.modelLanguage),
+        connectToken: optionalText(els.connectToken),
       };
       const res = await fetch('/api/processes/start', {
         method: 'POST',
@@ -707,6 +742,11 @@ function buildProcessUiHtml() {
       const trimmed = (text || '').trim();
       if (!trimmed) return null;
       try { return JSON.parse(trimmed); } catch { return null; }
+    }
+
+    function optionalText(input) {
+      const value = input && input.value ? input.value.trim() : '';
+      return value || undefined;
     }
 
     function setStatus(text) {

@@ -2,7 +2,7 @@ import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { getOpenAIApiKey } from "../config/openai";
-import { ParsedBpmnAgentConfig } from "../runtime/bpmnAgentConfig";
+import { ParsedBpmnAgentConfig } from "../runtime/bpmn/bpmnAgentConfig";
 
 export function createBpmnAgent(
   agentConfig: ParsedBpmnAgentConfig,

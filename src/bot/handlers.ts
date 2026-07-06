@@ -3,12 +3,17 @@ import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createStreamingUpdater } from "../teams/streamingUpdater";
 import { createStateGraph } from "../runtime/createStateGraph";
-import { createBPMNStateGraph } from "../runtime/createBPMNStateGraph";
+import { createBPMNStateGraph } from "../runtime/bpmn/createBPMNStateGraph";
 import fs from "fs";
-import { createJSONStateGraph } from "../runtime/createJSONStateGraph";
 import { MessageFactory } from "@microsoft/agents-hosting";
 import { Command } from "@langchain/langgraph";
 import { parseResponseContent } from "../runtime/responseFormat";
+import {
+  getProcessDetails,
+  getProcessSession,
+  startProcess,
+  stepProcess,
+} from "../process/processManager";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -28,180 +33,232 @@ export async function handleMessage(
 
   console.log("[USER]", userText);
 
-  // ---------------------------------------------------
-  // GET RUNTIME TOOLS
-  // ---------------------------------------------------
-
-  const tools = getTools();
-
-  console.log(`[TOOLS] ${tools.length} loaded`);
 
 
   // ---------------------------------------------------
-  // RESOLVE MCP PROMPT
+  // INVOKE PROCESS MANAGER FOR JSON/DEBUG MODES
   // ---------------------------------------------------
 
-  let resolvedUserPrompt = null;
+  if (mode === "json" || mode === "debug") {
+    let threadId = context.activity.conversation?.id ?? "default";
+    const resumeValue = extractResumeValue(context.activity.value);
+    const streamer = await createStreamingUpdater(context);
 
-  try {
-    resolvedUserPrompt = await resolvePrompt(userText);
+    try {
+      let invocationResult: any;
 
-    if (resolvedUserPrompt) {
-      console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
-    }
-  } catch (err) {
-    console.warn("[PROMPT] resolution failed", err);
-  }
+      if (resumeValue !== null) {
+        invocationResult = await stepProcess(threadId, { resume: resumeValue });
 
-
-  // ---------------------------------------------------
-  // BUILD FINAL SYSTEM PROMPT
-  // ---------------------------------------------------
-
-  let agentGraph: any;
-
-  let runtimePrompt = userText;
-
-  switch (mode) {
-    case "default": {
-      runtimePrompt = buildRuntimePrompt(
-        resolvedUserPrompt,
-        tools,
-        userText
-      );
-      agentGraph = createStateGraph(
-        langchainreactagent,
-        runtimePrompt,
-        context.activity.conversation?.id ?? "default"
-      );
-      break;
-    }
-    case "bpmn": {
-      const xml = fs.readFileSync("demo.bpmn", "utf-8");
-      agentGraph = createBPMNStateGraph(xml, langchainreactagent, systemPrompt,
-        context.activity.conversation?.id ?? "default"
-      )
-      break;
-    }
-    case "json": {
-      let prompt = systemPrompt;
-      prompt = "";
-      const json = fs.readFileSync("langgraph.json", "utf-8");
-      agentGraph = createJSONStateGraph(json, langchainreactagent, prompt,
-        context.activity.conversation?.id ?? "default"
-      )
-      break;
-    }
-    case "debug": {
-      let prompt = systemPrompt;
-      prompt = "";
-      const json = fs.readFileSync("langgraph.json", "utf-8");
-      agentGraph = createJSONStateGraph(
-        json,
-        langchainreactagent,
-        prompt,
-        context.activity.conversation?.id ?? "default",
-        { debugStepper: true }
-      );
-      break;
-    }
-  }
-
-  // ---------------------------------------------------
-  // INVOKE LANGGRAPH AGENT
-  // ---------------------------------------------------
-
-  const streamer = await createStreamingUpdater(context);
-  const threadId = context.activity.conversation?.id ?? "default"; // Get thread ID
-  const resumeValue = extractResumeValue(context.activity.value);
-
-  try {
-    const config = {
-      configurable: {
-        thread_id: threadId
+        // If this conversation has no in-memory session yet, start one and retry the step.
+        if (!invocationResult) {
+          await startProcess({
+            sessionId: threadId,
+            userQuery: userText,
+            debugStepper: mode === "debug",
+          });
+          invocationResult = await stepProcess(threadId, { resume: resumeValue });
+        }
+      } else if (getProcessSession(threadId)) {
+        invocationResult = await stepProcess(threadId, {
+          env: { userQuery: userText },
+        });
+      } else {
+        invocationResult = await startProcess({
+          sessionId: threadId,
+          userQuery: userText,
+          debugStepper: mode === "debug",
+        });
       }
-    };
 
-    const input = resumeValue !== null
-      ? new Command({ resume: resumeValue })
-      : {
+      if (!invocationResult) {
+        throw new Error("Process session unavailable for this conversation.");
+      }
+
+      const processDetails = await getProcessDetails(threadId);
+      const graphState = processDetails?.state ?? null;
+
+      const interruptPayload = getUserInterruptPayloadFromSummary(graphState);
+      if (interruptPayload) {
+        const adaptiveCard =
+          interruptPayload.type === "adaptiveCard" && interruptPayload.card
+            ? interruptPayload.card
+            : interruptPayload;
+
+        const posted = await streamer.final(JSON.stringify(adaptiveCard));
+        if (!posted) {
+          await context.sendActivity(
+            MessageFactory.attachment({
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: adaptiveCard,
+            })
+          );
+        }
+        return;
+      }
+
+      if (mode === "debug" && hasDebugBreakpointFromSummary(graphState)) {
+        const debugCard = buildDebugStepperCardFromSummary(graphState);
+        const posted = await streamer.final(JSON.stringify(debugCard));
+        if (!posted) {
+          await context.sendActivity(
+            MessageFactory.attachment({
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: debugCard,
+            })
+          );
+        }
+        return;
+      }
+
+      let content =
+        invocationResult?.result?.finalResponse ??
+        "Sorry, I did not receive a response from the agent.";
+      content = normalizeFinalContent(content);
+
+      const posted = await streamer.final(content);
+      return posted ? null : content;
+    } catch (err) {
+      if (isGatewayRoutingError(err)) {
+        console.warn("[AGENT] gateway routing failed", err);
+        try {
+          await streamer.complete();
+        } catch (streamError) {
+          console.warn("[STREAMER] complete failed", streamError);
+        }
+
+        return [
+          "I couldn't route that request because no gateway branch matched.",
+          "Please update the process so the gateway has a matching condition or a default flow.",
+        ].join(" ");
+      }
+
+      console.error("[AGENT] invoke failed", err);
+      try {
+        await streamer.complete();
+      } catch (streamError) {
+        console.warn("[STREAMER] complete failed", streamError);
+      }
+      return "Sorry, I encountered an internal error while generating the response. Please try again.";
+    }
+  } else {
+
+    let threadId = context.activity.conversation?.id ?? "default";
+    const resumeValue = extractResumeValue(context.activity.value);
+    let agentGraph: any;
+    let runtimePrompt = userText;
+    // ---------------------------------------------------
+    // GET RUNTIME TOOLS
+    // ---------------------------------------------------
+
+    const tools = getTools();
+
+    console.log(`[TOOLS] ${tools.length} loaded`);
+
+
+    // ---------------------------------------------------
+    // RESOLVE MCP PROMPT
+    // ---------------------------------------------------
+
+    let resolvedUserPrompt = null;
+
+    try {
+      resolvedUserPrompt = await resolvePrompt(userText);
+
+      if (resolvedUserPrompt) {
+        console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
+      }
+    } catch (err) {
+      console.warn("[PROMPT] resolution failed", err);
+    }
+
+    switch (mode) {
+      case "default": {
+        runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, userText);
+        agentGraph = createStateGraph(langchainreactagent, runtimePrompt, threadId);
+        break;
+      }
+      case "bpmn": {
+        const xml = fs.readFileSync("demo.bpmn", "utf-8");
+        agentGraph = createBPMNStateGraph(xml, systemPrompt, threadId)
+        break;
+      }
+    }
+    // ---------------------------------------------------
+    // INVOKE LANGGRAPH AGENT
+    // ---------------------------------------------------
+
+    const streamer = await createStreamingUpdater(context);
+
+    try {
+      const config = {
+        configurable: {
+          thread_id: threadId
+        }
+      };
+
+      const input = resumeValue !== null
+        ? new Command({ resume: resumeValue })
+        : {
           userQuery: runtimePrompt,
           processVariables: {}
         };
 
-    let result = await agentGraph.invoke(input, config);
+      let result = await agentGraph.invoke(input, config);
 
-    const graphState = await agentGraph.getState(config);
+      const graphState = await agentGraph.getState(config);
 
-    if (hasPendingUserInterrupt(graphState)) {
-      const interruptPayload = getUserInterruptPayload(graphState);
+      if (hasPendingUserInterrupt(graphState)) {
+        const interruptPayload = getUserInterruptPayload(graphState);
 
+        const adaptiveCard =
+          interruptPayload.type === "adaptiveCard" && interruptPayload.card
+            ? interruptPayload.card
+            : interruptPayload;
+
+        const posted = await streamer.final(JSON.stringify(adaptiveCard));
+        if (!posted) {
+          await context.sendActivity(
+            MessageFactory.attachment({
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: adaptiveCard,
+            })
+          );
+        }
+        return;
+      }
+
+      // Handle regular responses
+      let content =
+        result?.finalResponse ??
+        "Sorry, I did not receive a response from the agent.";
+      content = normalizeFinalContent(content);
+
+      const posted = await streamer.final(content);
+      return posted ? null : content;
+    } catch (err) {
+      if (isGatewayRoutingError(err)) {
+        console.warn("[AGENT] gateway routing failed", err);
+        try {
+          await streamer.complete();
+        } catch (streamError) {
+          console.warn("[STREAMER] complete failed", streamError);
+        }
+
+        return [
+          "I couldn't route that request because no gateway branch matched.",
+          "Please update the process so the gateway has a matching condition or a default flow.",
+        ].join(" ");
+      }
+
+      console.error("[AGENT] invoke failed", err);
       try {
         await streamer.complete();
       } catch (streamError) {
         console.warn("[STREAMER] complete failed", streamError);
       }
-
-      const adaptiveCard =
-        interruptPayload.type === "adaptiveCard" && interruptPayload.card
-          ? interruptPayload.card
-          : interruptPayload;
-
-      await context.sendActivity(
-        MessageFactory.attachment({
-          contentType: "application/vnd.microsoft.card.adaptive",
-          content: adaptiveCard,
-        })
-      );
-      return;
+      return "Sorry, I encountered an internal error while generating the response. Please try again.";
     }
-
-    if (mode === "debug" && hasDebugBreakpoint(graphState)) {
-      try {
-        await streamer.complete();
-      } catch (streamError) {
-        console.warn("[STREAMER] complete failed", streamError);
-      }
-
-      await context.sendActivity(
-        MessageFactory.attachment({
-          contentType: "application/vnd.microsoft.card.adaptive",
-          content: buildDebugStepperCard(graphState),
-        })
-      );
-      return;
-    }
-
-    // Handle regular responses
-    let content =
-      result?.finalResponse ??
-      "Sorry, I did not receive a response from the agent.";
-    content = normalizeFinalContent(content);
-
-    const posted = await streamer.final(content);
-    return posted ? null : content;
-  } catch (err) {
-    if (isGatewayRoutingError(err)) {
-      console.warn("[AGENT] gateway routing failed", err);
-      try {
-        await streamer.complete();
-      } catch (streamError) {
-        console.warn("[STREAMER] complete failed", streamError);
-      }
-
-      return [
-        "I couldn't route that request because no gateway branch matched.",
-        "Please update the process so the gateway has a matching condition or a default flow.",
-      ].join(" ");
-    }
-
-    console.error("[AGENT] invoke failed", err);
-    try {
-      await streamer.complete();
-    } catch (streamError) {
-      console.warn("[STREAMER] complete failed", streamError);
-    }
-    return "Sorry, I encountered an internal error while generating the response. Please try again.";
   }
 }
 
@@ -242,8 +299,19 @@ function getUserInterruptPayload(state: any) {
   return interruptedTask?.interrupts?.[0]?.value ?? null;
 }
 
-function hasDebugBreakpoint(state: any) {
-  return Array.isArray(state?.next) && state.next.length > 0;
+function getUserInterruptPayloadFromSummary(stateSummary: any) {
+  if (!stateSummary) {
+    return null;
+  }
+
+  const interrupts = Array.isArray(stateSummary?.interrupts)
+    ? stateSummary.interrupts
+    : [];
+  return interrupts[0]?.value ?? null;
+}
+
+function hasDebugBreakpointFromSummary(stateSummary: any) {
+  return Array.isArray(stateSummary?.next) && stateSummary.next.length > 0;
 }
 
 function normalizeFinalContent(content: any) {
@@ -284,10 +352,9 @@ function concatObjectValues(value: any): any {
   return parts.join(" ").trim();
 }
 
-function buildDebugStepperCard(state: any) {
-  const nextNodes = Array.isArray(state?.next) ? state.next : [];
-  const values = state?.values ?? {};
-  const step = state?.metadata?.step ?? 0;
+function buildDebugStepperCardFromSummary(stateSummary: any) {
+  const nextNodes = Array.isArray(stateSummary?.next) ? stateSummary.next : [];
+  const values = stateSummary?.env ?? {};
 
   return {
     type: "AdaptiveCard",
@@ -303,7 +370,7 @@ function buildDebugStepperCard(state: any) {
       },
       {
         type: "TextBlock",
-        text: `Step ${step}`,
+        text: "Debug pause",
         wrap: true,
       },
       {

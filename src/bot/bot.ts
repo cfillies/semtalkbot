@@ -25,7 +25,7 @@ export async function createMAFBot(mode: string) {
     let content: string | null;
 
     try {
-      content = await handleMessage(langgraph_reactagent, context, systemPrompt,mode);
+      content = await handleMessage(langgraph_reactagent, context, systemPrompt, mode);
     } catch (err) {
       console.error("[BOT] handler failed", err);
       await context.sendActivity(

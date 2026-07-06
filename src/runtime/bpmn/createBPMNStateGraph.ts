@@ -7,16 +7,17 @@ import {
   StateGraph,
 } from "@langchain/langgraph";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { getTools } from "../mcp/mcpToolsAdapter";
-import { createBpmnAgent } from "../agents/createBpmnAgent";
-import { parseBpmnAgentConfig,
+import { getTools } from "../../mcp/mcpToolsAdapter";
+import { createBpmnAgent } from "../../agents/createBpmnAgent";
+import {
+  parseBpmnAgentConfig,
   type ParsedBpmnAgentConfig,
 } from "./bpmnAgentConfig";
 import {
   parseBpmnTaskConfig,
   type ParsedBpmnTaskConfig,
 } from "./bpmnTaskConfig";
-import { asArray, getLastText, selectTools } from "./utils";
+import { asArray, getLastText, selectTools } from "../utils";
 
 
 function buildGatewayRoute(gatewayId: string, flows: any[]) {
@@ -144,7 +145,6 @@ function createTaskNode(
 
 export function createBPMNStateGraph(
   xml: string,
-  _agent: any,
   systemPrompt: string,
   threadId: string
 ) {
