@@ -2,6 +2,7 @@ import {
   StateGraph,
   START,
   END,
+  MemorySaver,
 } from "@langchain/langgraph";
 
 import { createProcessAgentNode } from "../agents/processAgent";
@@ -14,7 +15,9 @@ const RuntimeState = Annotation.Root({
   finalResponse: Annotation<string>(),
 });
 
-export function createStateGraph(
+const inMemoryCheckpointer = new MemorySaver();
+
+export function createProcessStateGraph(
   agent: any,
   systemPrompt: string,
   threadId: string) {
@@ -28,5 +31,7 @@ export function createStateGraph(
     .addEdge("processAgent", "aggregate")
     .addEdge("aggregate", END);
 
-  return graph.compile();
+  return graph.compile({
+    checkpointer: inMemoryCheckpointer,
+  });
 }

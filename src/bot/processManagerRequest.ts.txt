@@ -1,0 +1,57 @@
+import axios from "axios";
+
+const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
+const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
+
+function resolveBaseUrl(server: string) {
+  const fromEnv = process.env.PROCESS_MANAGER_URL ?? process.env.PROCESS_MANAGER_BASE_URL;
+  const base = (server || fromEnv || DEFAULT_PROCESS_MANAGER_URL).replace(/\/+$/, "");
+  const prefix = (process.env.PROCESS_MANAGER_API_PREFIX ?? DEFAULT_PROCESS_MANAGER_API_PREFIX)
+    .replace(/^\/*/, "/")
+    .replace(/\/+$/, "");
+  return `${base}${prefix}/`;
+}
+
+export async function postProcessManagerRequest(server: string, service: string, payload: any): Promise<any> {
+  const url = resolveBaseUrl(server) + service;
+  const headers: any = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+  const c = { headers, timeout: Number(process.env.PROCESS_MANAGER_TIMEOUT_MS ?? 15000) };
+  try {
+    const res = await axios.post(url, payload, c);
+    if ((res.status === 201 || res.status === 200) && res.data) {
+      return res.data;
+    }
+
+    console.log("postProcessManagerRequest: " + res.statusText);
+    return res.statusText;
+  } catch (e) {
+    console.log("postProcessManagerRequest: " + e);
+    return (e as any).message;
+  }
+}
+
+export async function getProcessManagerRequest(server: string, service: string): Promise<any> {
+  const url = resolveBaseUrl(server) + service;
+  const headers: any = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+  const c = { headers, timeout: Number(process.env.PROCESS_MANAGER_TIMEOUT_MS ?? 15000) };
+  try {
+    const res = await axios.get(url, c);
+    if ((res.status === 201 || res.status === 200) && res.data) {
+      return res.data;
+    }
+
+    console.log("getProcessManagerRequest: " + res.statusText);
+    return res.statusText;
+  } catch (e) {
+    console.log("getProcessManagerRequest: " + e);
+    return (e as any).message;
+  }
+}

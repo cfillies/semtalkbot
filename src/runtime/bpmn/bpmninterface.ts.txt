@@ -74,14 +74,14 @@ export enum BPMN_EventTypeName {
 }
 
 
-// enumList: [{val: 'standard', dispName: 'Standard'}, 
-// {val: 'eventInt', dispName: 'Interrupting'}, 
-// {val: 'eventNonint', dispName: 'Non-Interrupting'}, 
-// {val: 'catching', dispName: 'Catching'}, 
-// {val: 'boundInt', dispName: 'Bound Interrupting'}, 
-// {val: 'boundNonint', dispName: 'Bound Non-Interrupting'}, 
-// {val: 'throwing', dispName: 'Throwing'}, 
-// {val: 'end', dispName: 'End'}, 
+// enumList: [{val: 'standard', dispName: 'Standard'},
+// {val: 'eventInt', dispName: 'Interrupting'},
+// {val: 'eventNonint', dispName: 'Non-Interrupting'},
+// {val: 'catching', dispName: 'Catching'},
+// {val: 'boundInt', dispName: 'Bound Interrupting'},
+// {val: 'boundNonint', dispName: 'Bound Non-Interrupting'},
+// {val: 'throwing', dispName: 'Throwing'},
+// {val: 'end', dispName: 'End'},
 // {val: 'none', dispName: 'None'}]
 
 export enum BPMN_TriggerTypeName {
@@ -110,7 +110,8 @@ export enum BPMN_TaskTypeName {
   InstantiationReceive = "Instantiation Receive",
   BusinessRule = "Business Rule",
   Abstract = "Abstract",
-  Event = "Event"
+  Event = "Event",
+  Agentic = "Agentic"
 }
 
 export enum BPMN_GatewayType {
@@ -153,7 +154,8 @@ export enum BPMN_TaskType {
   Manual = 5,
   Script = 6,
   InstantiationReceive = 7,
-  BusinessRule = 8
+  BusinessRule = 8,
+  Agentic = 9
 }
 export enum BPMN_ImplementationType {
   None = "",

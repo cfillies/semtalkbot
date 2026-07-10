@@ -20,20 +20,20 @@ import {
 import { asArray, getLastText, selectTools } from "../utils";
 
 
-function buildGatewayRoute(gatewayId: string, flows: any[]) {
-  return (state: any) => {
-    const lastText = getLastText(state.messages).toLowerCase();
-    const outgoing = flows.filter((flow: any) => flow.sourceRef === gatewayId);
+// function buildGatewayRoute(gatewayId: string, flows: any[]) {
+//   return (state: any) => {
+//     const lastText = getLastText(state.messages).toLowerCase();
+//     const outgoing = flows.filter((flow: any) => flow.sourceRef === gatewayId);
 
-    for (const flow of outgoing) {
-      if (flow.name && lastText.includes(String(flow.name).toLowerCase())) {
-        return flow.targetRef;
-      }
-    }
+//     for (const flow of outgoing) {
+//       if (flow.name && lastText.includes(String(flow.name).toLowerCase())) {
+//         return flow.targetRef;
+//       }
+//     }
 
-    return outgoing[0]?.targetRef ?? END;
-  };
-}
+//     return outgoing[0]?.targetRef ?? END;
+//   };
+// }
 
 function buildAgentTopology(bpmn: any, fallbackSystemPrompt: string) {
   const process = bpmn.definitions.process;

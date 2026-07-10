@@ -89,7 +89,7 @@ export async function createStreamingUpdater(
   let fallbackMode = false;
 
   const unsubscribe =
-    subscribeRuntimeEvents(async (event) => {
+    subscribeRuntimeEvents(async (event: any) => {
       latestText = `⚡ ${event.message}`;
       // Try to update the persistent activity in-place.
       try {

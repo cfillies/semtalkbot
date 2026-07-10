@@ -1,0 +1,84 @@
+import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph";
+import { MongoClient } from "mongodb";
+import { MongoDBSaver } from "@langchain/langgraph-checkpoint-mongodb";
+
+function getDbName() {
+  return process.env.LANGGRAPH_DB ?? process.env.DATABASE ?? process.env.dbname;
+}
+
+function getConnectionString() {
+  return process.env.CONNECTION_STRING ?? process.env.MONGODB_URL;
+}
+
+function getCheckpointCollectionName() {
+  return process.env.LANGGRAPH_CHECKPOINTS_COLLECTION ?? "processCheckpoints";
+}
+
+function getWritesCollectionName() {
+  return process.env.LANGGRAPH_CHECKPOINT_WRITES_COLLECTION ?? "processCheckpointWrites";
+}
+
+let sharedCheckpointer: BaseCheckpointSaver | null = null;
+let setupPromise: Promise<void> | null = null;
+
+function parseOptionalTtlSeconds() {
+  const raw = process.env.LANGGRAPH_CHECKPOINT_TTL_SECONDS;
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(
+      `[PROCESS] invalid LANGGRAPH_CHECKPOINT_TTL_SECONDS value "${raw}"; ignoring TTL configuration.`,
+    );
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function ensureMongoSaverSetup(saver: MongoDBSaver) {
+  if (setupPromise) {
+    return;
+  }
+
+  setupPromise = saver
+    .setup()
+    .then((errors) => {
+      if (errors.length > 0) {
+        for (const error of errors) {
+          console.warn("[PROCESS] MongoDBSaver setup warning", error);
+        }
+      }
+    })
+    .catch((err) => {
+      console.warn("[PROCESS] MongoDBSaver setup failed; continuing without pre-created indexes", err);
+    });
+}
+
+export function getProcessGraphCheckpointer() {
+  if (sharedCheckpointer) {
+    return sharedCheckpointer;
+  }
+
+  const dbName = getDbName();
+  const connectionString = getConnectionString();
+  if (!dbName || !connectionString) {
+    sharedCheckpointer = new MemorySaver();
+    return sharedCheckpointer;
+  }
+
+  const mongoClient = new MongoClient(connectionString);
+  const saver = new MongoDBSaver({
+    client: mongoClient,
+    dbName,
+    checkpointCollectionName: getCheckpointCollectionName(),
+    checkpointWritesCollectionName: getWritesCollectionName(),
+    ttl: parseOptionalTtlSeconds(),
+  });
+  ensureMongoSaverSetup(saver);
+
+  sharedCheckpointer = saver;
+  return sharedCheckpointer;
+}

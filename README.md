@@ -48,6 +48,7 @@ The code expects a few environment variables during local development and deploy
 
 - `OPENAI_API_KEY` - required for the OpenAI model used by the agent
 - `MCP_URL` - URL of the MCP server that provides tool definitions and prompt resources
+- `CONNECTION_STRING` - MongoDB connection string used for process/session persistence
 
 For local runs, `OPENAI_API_KEY` should be the actual OpenAI key value the app will use at runtime.
 The toolkit source files may contain `SECRET_OPENAI_API_KEY`, but that is only an input secret name.
@@ -60,6 +61,23 @@ The Microsoft 365 Agents Toolkit also generates bot and tenant settings such as:
 - `BOT_AZURE_APP_SERVICE_RESOURCE_ID`
 - `TEAMS_APP_ID`
 - `M365_APP_ID`
+
+### Process and LangGraph persistence
+
+Process execution state is persisted in MongoDB so sessions can survive restarts and scale-out.
+
+- Session metadata is stored in `processSessions` by default.
+- LangGraph checkpoints use the official `@langchain/langgraph-checkpoint-mongodb` saver.
+- If MongoDB settings are missing, the runtime falls back to in-memory checkpointing.
+
+Optional persistence settings:
+
+- `PROCESS_SESSION_DB` - database for session documents (default: `DATABASE` or `dbname`)
+- `PROCESS_SESSION_COLLECTION` - session collection (default: `processSessions`)
+- `LANGGRAPH_DB` - database for checkpoints (default: `DATABASE` or `dbname`)
+- `LANGGRAPH_CHECKPOINTS_COLLECTION` - checkpoint collection (default: `processCheckpoints`)
+- `LANGGRAPH_CHECKPOINT_WRITES_COLLECTION` - checkpoint write collection (default: `processCheckpointWrites`)
+- `LANGGRAPH_CHECKPOINT_TTL_SECONDS` - optional TTL for checkpoints in seconds
 
 ## Local Development
 

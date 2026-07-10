@@ -2,9 +2,7 @@ import { resolvePrompt } from "../prompts/resolvePrompt";
 import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createStreamingUpdater } from "../teams/streamingUpdater";
-import { createStateGraph } from "../runtime/createStateGraph";
-import { createBPMNStateGraph } from "../runtime/bpmn/createBPMNStateGraph";
-import fs from "fs";
+import { createProcessStateGraph } from "../runtime/createStateGraph";
 import { MessageFactory } from "@microsoft/agents-hosting";
 import { Command } from "@langchain/langgraph";
 import { parseResponseContent } from "../runtime/responseFormat";
@@ -13,7 +11,7 @@ import {
   getProcessSession,
   startProcess,
   stepProcess,
-} from "../process/processManager";
+} from "../services/processManager";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -59,7 +57,7 @@ export async function handleMessage(
           });
           invocationResult = await stepProcess(threadId, { resume: resumeValue });
         }
-      } else if (getProcessSession(threadId)) {
+      } else if (await getProcessSession(threadId)) {
         invocationResult = await stepProcess(threadId, {
           env: { userQuery: userText },
         });
@@ -175,14 +173,13 @@ export async function handleMessage(
     switch (mode) {
       case "default": {
         runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, userText);
-        agentGraph = createStateGraph(langchainreactagent, runtimePrompt, threadId);
+        agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
         break;
       }
-      case "bpmn": {
-        const xml = fs.readFileSync("demo.bpmn", "utf-8");
-        agentGraph = createBPMNStateGraph(xml, systemPrompt, threadId)
-        break;
-      }
+      case "bpmn":
+        return "BPMN mode is temporarily disabled in this bot and has been moved to the external process service.";
+      default:
+        return `Unsupported bot mode: ${mode}`;
     }
     // ---------------------------------------------------
     // INVOKE LANGGRAPH AGENT

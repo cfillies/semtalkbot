@@ -23,25 +23,25 @@ export function parseJsonAgentConfig(
 
   const systemPrompt = [
     fallbackSystemPrompt,
-    toStringValue(metadata.systemPrompt),
+    toStringValue(metadata.AgenticSystemPrompt),
   ]
     .filter(Boolean)
     .join("\n\n")
     .trim();
 
-  const modelDefined = metadata.model !== undefined && metadata.model !== "";
-  const temperatureDefined = metadata.temperature !== undefined && metadata.temperature !== "";
-  const toolFilterDefined = metadata.toolNames !== undefined && metadata.toolNames !== "";
+  const modelDefined = metadata.AgenticModel !== undefined && metadata.AgenticModel !== "";
+  const temperatureDefined = metadata.AgenticTemperature !== undefined && metadata.AgenticTemperature !== "";
+  const toolFilterDefined = metadata.AgenticToolnames !== undefined && metadata.AgenticToolnames !== "";
 
   return {
     id: String(laneOrParticipant?.id ?? ""),
     name: String(laneOrParticipant?.name ?? laneOrParticipant?.id ?? "BPMN agent"),
     systemPrompt: systemPrompt || fallbackSystemPrompt,
-    model: toStringValue(metadata.model),
+    model: toStringValue(metadata.AgenticModel),
     modelDefined,
-    temperature: parseTemperature(metadata.temperature),
+    temperature: parseTemperature(metadata.AgenticTemperature),
     temperatureDefined,
-    toolNames: toStringList(metadata.tools ?? metadata.toolNames ?? metadata.toolList),
+    toolNames: toStringList(metadata.AgenticToolnames ?? metadata.toolNames ?? metadata.toolList),
     toolFilterDefined,
   };
 }

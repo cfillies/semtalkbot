@@ -4,7 +4,6 @@ import {
   MessagesAnnotation,
   START,
   StateGraph,
-  MemorySaver,
 } from "@langchain/langgraph";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { getTools } from "../mcp/mcpToolsAdapter";
@@ -13,23 +12,26 @@ import { ParsedJsonAgentConfig, parseJsonAgentConfig } from "./jsonAgentConfig";
 import { asArray, getLastText, selectTools } from "./utils";
 import { IExpression, ParsedJsonTaskConfig, parseJsonTaskConfig, SemTalkAssignment, SemTalkOperator } from "./jsonTaskConfig";
 import { interrupt } from "@langchain/langgraph";
+import { getProcessGraphCheckpointer } from "./mongoCheckpointSaver";
+import { BPMN_TaskTypeName } from "./bpmn/bpmninterface";
+import axios, { AxiosRequestConfig } from "axios";
 
-const jsonGraphCheckpointer = new MemorySaver();
+const jsonGraphCheckpointer = getProcessGraphCheckpointer();
 
-function buildGatewayRoute(gatewayId: string, flows: any[]) {
-  return (state: any) => {
-    const lastText = getLastText(state.messages).toLowerCase();
-    const outgoing = flows.filter((flow: any) => flow.sourceRef === gatewayId);
+// function buildGatewayRoute(gatewayId: string, flows: any[]) {
+//   return (state: any) => {
+//     const lastText = getLastText(state.messages).toLowerCase();
+//     const outgoing = flows.filter((flow: any) => flow.sourceRef === gatewayId);
 
-    for (const flow of outgoing) {
-      if (flow.name && lastText.includes(String(flow.name).toLowerCase())) {
-        return flow.targetRef;
-      }
-    }
+//     for (const flow of outgoing) {
+//       if (flow.name && lastText.includes(String(flow.name).toLowerCase())) {
+//         return flow.targetRef;
+//       }
+//     }
 
-    return outgoing[0]?.targetRef ?? END;
-  };
-}
+//     return outgoing[0]?.targetRef ?? END;
+//   };
+// }
 
 function parseGatewayCondition(condition: unknown): IExpression[] {
   if (!condition) {
@@ -570,32 +572,119 @@ function isRequiredOutputField(outputName: string) {
   return true;
 }
 
-async function expressionTaskNode(task: ParsedJsonTaskConfig) {
-  return async (state: any) => {
-    let variables = state.processVariables;
-    // console.log(task.name, 'Global Variables:', variables); // Example usage - logging
-    const updates: any = {};
+function expressionTaskNode(task: ParsedJsonTaskConfig, state: any) {
+  // return async (state: any) => {
+  let variables = state.processVariables;
+  // console.log(task.name, 'Global Variables:', variables); // Example usage - logging
+  const updates: any = {};
 
-    applyAssignmentExpression(variables, task.AssignmentExpression, updates);
-    return {
-      processVariables: updates
-    };
+  applyAssignmentExpression(variables, task.AssignmentExpression, updates);
+  return {
+    processVariables: updates
   };
+  // };
+}
+interface NameValuePair {
+  key: string;
+  value: string;
+}
+function parseNameValuePairs(value: any): NameValuePair[] {
+  if (!value) {
+    return [{ key: "", value: "" }];
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((pair) => ({ key: String(pair.key || ""), value: String(pair.value || "") }));
+      }
+    } catch {
+      const lines = String(value)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      return lines.map((line) => {
+        const idx = line.indexOf(":");
+        return {
+          key: idx > 0 ? line.slice(0, idx).trim() : line,
+          value: idx > 0 ? line.slice(idx + 1).trim() : "",
+        };
+      });
+    }
+  }
+  if (Array.isArray(value)) {
+    return value.map((pair) => ({ key: String(pair.key || ""), value: String(pair.value || "") }));
+  }
+  if (typeof value === "object") {
+    return Object.entries(value).map(([key, val]) => ({ key, value: String(val ?? "") }));
+  }
+  return [{ key: "", value: String(value) }];
+}
+function ValuePairsAsObject(pairs: NameValuePair[]): Record<string, string> {
+  return pairs.reduce((acc, pair) => {
+    if (pair.key.trim()) {
+      acc[pair.key] = pair.value;
+    }
+    return acc;
+  }, {} as Record<string, string>);
 }
 
-async function serviceTaskNode(state: any) {
 
-  const response = await fetch(
-    "https://api/customer"
-  );
+async function serviceTaskNode(task: ParsedJsonTaskConfig, state: any) {
+  let method = task.WebserviceMethod;
+  if (!method) method = "GET";
+  const url = task.WebserviceUrl || "";
+  const paramspairs = parseNameValuePairs(task.WebserviceParams);
+  const headerspairs = parseNameValuePairs(task.WebserviceHeaders);
+  const bodyText = task.WebserviceBody || "";
+  try {
+    const params = ValuePairsAsObject(paramspairs);
+    const headers = ValuePairsAsObject(headerspairs);
+    let data: any = undefined;
 
-  const customer = await response.json();
-
-  return {
-    processVariables: {
-      customer
+    if (bodyText && bodyText.trim().length > 0) {
+      try {
+        data = JSON.parse(bodyText);
+      } catch {
+        data = bodyText;
+      }
     }
-  };
+
+    const config: AxiosRequestConfig = {
+      method: method.toLowerCase() as AxiosRequestConfig["method"],
+      url,
+      params,
+      headers,
+      data,
+    };
+
+    const result = await axios(config);
+    return {
+      processVariables: {
+        result
+      }
+    }
+  } catch (error: any) {
+    //   const responseBody = error?.response?.data
+    //     ? JSON.stringify(error.response.data, null, 2)
+    //     : error.message;
+    //   this.setState({ errorText: responseBody, loading: false });
+  }
+
+  // const response = await fetch(
+  //   "https://api/customer"
+  // );
+
+  // const customer = await response.json();
+
+  // return {
+  //   processVariables: {
+  //     customer
+  //   }
+  // };
+  return {
+    processVariables: {}
+  }
 }
 
 function createTaskNode(
@@ -628,8 +717,16 @@ function createTaskNode(
 
 
     switch (task.tasktype) {
-      case "User": {
+      case BPMN_TaskTypeName.User: {
         let res = userTaskNode(task, state);
+        updates = res.processVariables;
+      }
+      case BPMN_TaskTypeName.Service: {
+        let res = await serviceTaskNode(task, state);
+        updates = res.processVariables;
+      }
+      case BPMN_TaskTypeName.Script: {
+        let res = expressionTaskNode(task, state);
         updates = res.processVariables;
       }
       default: {
@@ -658,7 +755,7 @@ function createTaskNode(
 
     let finalMessage: any = null;
 
-    if (task.tasktype !== "User") {
+    if (task.tasktype === BPMN_TaskTypeName.Agentic) {
       // Reading inputs from the task configuration
       const taskInputs = task.inputs || [];
       const taskOutputs = task.outputs || [];
@@ -675,7 +772,7 @@ function createTaskNode(
       }
 
       // Construct user prompt, incorporating input values
-      let userPrompt = `BPMN task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
+      let userPrompt = `Task: ${task.name}\nInputs:\n${inputValues}\n\nPrompt: ${task.promptTemplate}`;
       if (taskOutputs.length > 0) {
         userPrompt += "\n Please respond with the following output format:\n" + JSON.stringify(outputTemplate);
       }
@@ -727,8 +824,10 @@ function createTaskNode(
         }
       }
     }
-    applyAssignmentExpression(variables, task.AssignmentExpression, updates);
-
+    if (task.tasktype !== BPMN_TaskTypeName.Script && task.AssignmentExpression &&
+      task.AssignmentExpression.length > 0) {
+      applyAssignmentExpression(variables, task.AssignmentExpression, updates);
+    }
     return {
       processVariables: updates,
       messages: finalMessage ? [finalMessage] : [],
@@ -737,18 +836,18 @@ function createTaskNode(
 }
 
 export function createJSONStateGraph(
-  json: string,
+  model: any,
   fallbackSystemPrompt: string,
   threadId: string,
   options?: {
     debugStepper?: boolean;
   }
 ) {
-  const langgraph: any = JSON.parse(json);
-  if (langgraph!.bpmn!.processes.length === 0) {
+  // const langgraph: any = JSON.parse(json);
+  if (model!.bpmn!.processes.length === 0) {
     throw new Error("Invalid JSON graph: no processes found");
   }
-  const process = langgraph!.bpmn.processes[0];
+  const process = model!.bpmn.processes[0];
 
   // const lanes = asArray(process.lanes);
   const elements = asArray(process.elements);
@@ -939,18 +1038,24 @@ export function createJSONStateGraph(
   const debugStepper = options?.debugStepper ?? false;
   const compileOptions = debugStepper
     ? {
-        checkpointer: jsonGraphCheckpointer,
-        interruptBefore: [
-          ...tasks
-            .filter((task: any) => String(task.tasktype ?? "").toLowerCase() !== "user")
-            .map((task: any) => String(task.id)),
-          ...gateways.map((gateway: any) => String(gateway.id)),
-          ...endEvents.map((endEvent: any) => String(endEvent.id)),
-        ],
-      }
+      checkpointer: jsonGraphCheckpointer,
+      interruptBefore: [
+        ...tasks
+          .filter((task: any) => String(task.tasktype ?? "").toLowerCase() !== "user")
+          .map((task: any) => String(task.id)),
+        ...gateways.map((gateway: any) => String(gateway.id)),
+        ...endEvents.map((endEvent: any) => String(endEvent.id)),
+      ],
+    }
     : {
-        checkpointer: jsonGraphCheckpointer,
-      };
+      checkpointer: jsonGraphCheckpointer,
+    };
 
-  return graph.compile(compileOptions as any);
+  try {
+    const compiled = graph.compile(compileOptions as any);
+    return compiled;
+  } catch (err) {
+    console.error("Error compiling state graph:", err);
+    throw err;
+  }
 }

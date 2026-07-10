@@ -7,7 +7,7 @@ import {
   stepProcess,
   stopProcess,
   visualizeProcess,
-} from "../process/processManager";
+} from "../services/processManager";
 
 export function registerProcessRoutes(app: Express) {
   app.get("/processes-ui", (_req: Request, res: Response) => {
@@ -18,10 +18,16 @@ export function registerProcessRoutes(app: Express) {
     res.type("html").send(buildChatHtml());
   });
 
-  app.get("/api/processes", (_req: Request, res: Response) => {
-    res.json({
-      processes: listRunningProcesses(),
-    });
+  app.get("/api/processes", async (_req: Request, res: Response) => {
+    try {
+      res.json({
+        processes: await listRunningProcesses(),
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: err?.message ?? String(err),
+      });
+    }
   });
 
   app.get("/api/processes/:id", async (req: Request, res: Response) => {
@@ -40,21 +46,21 @@ export function registerProcessRoutes(app: Express) {
     }
   });
 
-  app.get("/api/processes/:id/state", async (req: Request, res: Response) => {
-    try {
-      const result = await getProcessDetails(String(req.params.id));
-      if (!result) {
-        res.status(404).json({ error: "Process not found" });
-        return;
-      }
+  // app.get("/api/processes/:id/state", async (req: Request, res: Response) => {
+  //   try {
+  //     const result = await getProcessDetails(String(req.params.id));
+  //     if (!result) {
+  //       res.status(404).json({ error: "Process not found" });
+  //       return;
+  //     }
 
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({
-        error: err?.message ?? String(err),
-      });
-    }
-  });
+  //     res.json(result);
+  //   } catch (err: any) {
+  //     res.status(500).json({
+  //       error: err?.message ?? String(err),
+  //     });
+  //   }
+  // });
 
   app.get("/api/processes/:id/history", async (req: Request, res: Response) => {
     try {
@@ -143,8 +149,8 @@ export function registerProcessRoutes(app: Express) {
     }
   });
 
-  app.post("/api/processes/:id/stop", (req: Request, res: Response) => {
-    const result = stopProcess(String(req.params.id));
+  app.post("/api/processes/:id/stop", async (req: Request, res: Response) => {
+    const result = await stopProcess(String(req.params.id));
 
     if (!result) {
       res.status(404).json({ error: "Process not found" });
