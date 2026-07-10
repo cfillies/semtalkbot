@@ -61,7 +61,48 @@
             ]
         }
     ],
-    "composeExtensions": [],
+    "composeExtensions": [
+        {
+            "botId": "${{BOT_ID}}",
+            "commands": [
+                {
+                    "id": "findProcess",
+                    "type": "query",
+                    "title": "Find process",
+                    "description": "Search process ideas and insert a card",
+                    "initialRun": true,
+                    "parameters": [
+                        {
+                            "name": "query",
+                            "title": "Search text",
+                            "description": "Enter a process name or topic",
+                            "inputType": "text"
+                        }
+                    ]
+                },
+                {
+                    "id": "botConfig",
+                    "type": "action",
+                    "title": "Insert bot config command",
+                    "description": "Create a card with bot runtime config instructions",
+                    "parameters": [
+                        {
+                            "name": "mode",
+                            "title": "Mode",
+                            "description": "default, json, or debug",
+                            "inputType": "text"
+                        },
+                        {
+                            "name": "definitionFile",
+                            "title": "BPMN Workflow (from SemTalk Library)",
+                            "description": "Example: langgraph.json",
+                            "inputType": "text"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
     "configurableTabs": [],
     "staticTabs": [],
     "permissions": [
