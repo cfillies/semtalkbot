@@ -84,6 +84,8 @@ export async function createStreamingUpdater(
     typeof context.activity?.getConversationReference === "function"
       ? context.activity.getConversationReference()
       : undefined;
+  const channelId = String(context?.activity?.channelId ?? "").toLowerCase();
+  const supportsDeleteActivity = channelId !== "emulator";
 
   let latestText = "";
   let fallbackMode = false;
@@ -123,7 +125,7 @@ export async function createStreamingUpdater(
 
       // Remove the transient status activity when we hand off to a card/interrupt.
       try {
-        if (sent?.id) {
+        if (supportsDeleteActivity && sent?.id) {
           await context.deleteActivity(sent.id);
         }
       } catch (err) {
