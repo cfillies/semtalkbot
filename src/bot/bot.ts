@@ -4,8 +4,17 @@ import { parseResponseContent } from "../runtime/responseFormat";
 import { createAgent } from "../agents/createAgent";
 import { DEFAULT_SYSTEM_PROMPT } from "../agents/defaultPrompt";
 import { bootstrap } from "../bootstrap/bootstrap";
+import { setBotRuntimeMode } from "../config/botRuntimeConfig";
 
-export async function createMAFBot(mode: string) {
+export async function createMAFBot(startupMode?: string) {
+
+  if (startupMode) {
+    try {
+      setBotRuntimeMode(startupMode);
+    } catch (err) {
+      console.warn("[BOT] invalid startup mode, falling back to env/default", err);
+    }
+  }
 
   // 1. BOOTSTRAP MCP for the tools FIRST
   await bootstrap();
@@ -14,7 +23,7 @@ export async function createMAFBot(mode: string) {
   // Note: In a real-world scenario you would have a more sophisticated bot that can use external storage
   // For production scenarios, consider using an external store for conversation state and rehydrating agent instances per turn.
   let langgraph_reactagent: any = null;
-  if (mode == "default") langgraph_reactagent = createAgent();
+  langgraph_reactagent = createAgent();
   
   // 3. SYSTEM PROMPT
   // const systemPrompt = buildSystemPrompt(getTools());
@@ -22,10 +31,10 @@ export async function createMAFBot(mode: string) {
 
   return async (context: any) => {
 
-    let content: string | null;
+    let content: any = null;
 
     try {
-      content = await handleMessage(langgraph_reactagent, context, systemPrompt, mode);
+      content = await handleMessage(langgraph_reactagent, context, systemPrompt);
     } catch (err) {
       console.error("[BOT] handler failed", err);
       await context.sendActivity(
@@ -36,6 +45,17 @@ export async function createMAFBot(mode: string) {
 
     if (!content) {
       return;
+    }
+
+    if (context?.activity?.type === "invoke") {
+      if (typeof content === "object" && content !== null && typeof content.status === "number") {
+        return content;
+      }
+
+      return {
+        status: 200,
+        body: content,
+      };
     }
 
     try {

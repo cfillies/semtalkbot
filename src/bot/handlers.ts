@@ -19,6 +19,12 @@ import {
   startProcess,
   stepProcess,
 } from "../services/processManager";
+import {
+  getBotRuntimeConfig,
+  getSupportedBotModes,
+  setBotDefinitionFile,
+  setBotRuntimeMode,
+} from "../config/botRuntimeConfig";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -27,9 +33,13 @@ import {
 export async function handleMessage(
   langchainreactagent: any,
   context: any,
-  systemPrompt: string,
-  mode: string
+  systemPrompt: string
 ) {
+  const invokeResponse = handleComposeExtensionInvoke(context);
+  if (invokeResponse) {
+    return invokeResponse;
+  }
+
   // ---------------------------------------------------
   // USER INPUT
   // ---------------------------------------------------
@@ -38,6 +48,14 @@ export async function handleMessage(
   const threadId = context.activity.conversation?.id ?? "default";
 
   console.log("[USER]", userText);
+
+  const commandResponse = handleBotRuntimeCommand(userText);
+  if (commandResponse) {
+    return commandResponse;
+  }
+
+  const runtimeConfig = getBotRuntimeConfig();
+  const mode = runtimeConfig.mode;
 
 
 
@@ -61,6 +79,7 @@ export async function handleMessage(
             sessionId: threadId,
             userQuery: userText,
             debugStepper: mode === "debug",
+            definitionFile: runtimeConfig.definitionFile,
           });
           invocationResult = await stepProcess(threadId, { resume: resumeValue });
         }
@@ -73,6 +92,7 @@ export async function handleMessage(
           sessionId: threadId,
           userQuery: userText,
           debugStepper: mode === "debug",
+          definitionFile: runtimeConfig.definitionFile,
         });
       }
 
@@ -210,8 +230,6 @@ export async function handleMessage(
         agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
         break;
       }
-      case "bpmn":
-        return "BPMN mode is temporarily disabled in this bot and has been moved to the external process service.";
       default:
         return `Unsupported bot mode: ${mode}`;
     }
@@ -291,6 +309,193 @@ export async function handleMessage(
       return "Sorry, I encountered an internal error while generating the response. Please try again.";
     }
   }
+}
+
+function handleComposeExtensionInvoke(context: any): any | null {
+  const activity = context?.activity;
+  if (!activity || activity.type !== "invoke") {
+    return null;
+  }
+
+  const invokeName = String(activity.name ?? "");
+  if (invokeName !== "composeExtension/query" && invokeName !== "composeExtension/submitAction") {
+    return null;
+  }
+
+  const value = activity.value ?? {};
+  const commandId = String(value.commandId ?? "");
+
+  if (invokeName === "composeExtension/query" && commandId === "findProcess") {
+    const query = getQueryParameterValue(value.parameters, "query") ?? "";
+
+    const cards = buildProcessSearchCards(query);
+    if (cards.length === 0) {
+      return {
+        composeExtension: {
+          type: "message",
+          text: `No quick results for \"${query}\". Try asking the bot in chat.`,
+        },
+      };
+    }
+
+    return {
+      composeExtension: {
+        type: "result",
+        attachmentLayout: "list",
+        attachments: cards,
+      },
+    };
+  }
+
+  if (invokeName === "composeExtension/submitAction" && commandId === "botConfig") {
+    const mode = String(value?.data?.mode ?? "").trim();
+    const definitionFile = String(value?.data?.definitionFile ?? "").trim();
+
+    const lines = [
+      "Bot runtime config commands:",
+      mode ? `/bot mode ${mode}` : "Use /bot mode <default|json|debug>",
+      definitionFile
+        ? `/bot model ${definitionFile}`
+        : "Use /bot model <definitionFile>",
+      "Check current settings: /bot config",
+    ];
+
+    return {
+      composeExtension: {
+        type: "result",
+        attachmentLayout: "list",
+        attachments: [
+          toThumbnailAttachment(
+            "SemTalk Bot Runtime Config",
+            "Insert and run these commands in chat",
+            lines.join("\n")
+          ),
+        ],
+      },
+    };
+  }
+
+  return {
+    composeExtension: {
+      type: "message",
+      text: `Unknown compose extension command: ${commandId || "(empty)"}`,
+    },
+  };
+}
+
+function getQueryParameterValue(parameters: any, name: string): string | null {
+  const items = Array.isArray(parameters) ? parameters : [];
+  const found = items.find((p: any) => String(p?.name ?? "") === name);
+  const value = found?.value;
+
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return String(value);
+}
+
+function buildProcessSearchCards(query: string) {
+  const cleaned = query.trim();
+  if (!cleaned) {
+    return [
+      toThumbnailAttachment(
+        "SemTalk Process Search",
+        "Start with a query",
+        "Type a process name in the search box, e.g. 'invoice approval'."
+      ),
+    ];
+  }
+
+  const prompts = [
+    `Find process: ${cleaned}`,
+    `Explain process: ${cleaned}`,
+    `Show BPMN summary for: ${cleaned}`,
+  ];
+
+  return prompts.map((prompt) =>
+    toThumbnailAttachment(
+      prompt,
+      "Insert this as a chat prompt",
+      "Send this message to query the SemTalk bot."
+    )
+  );
+}
+
+function toThumbnailAttachment(title: string, subtitle: string, text: string) {
+  return {
+    contentType: "application/vnd.microsoft.card.thumbnail",
+    content: {
+      title,
+      subtitle,
+      text,
+    },
+    preview: {
+      contentType: "application/vnd.microsoft.card.thumbnail",
+      content: {
+        title,
+        text,
+      },
+    },
+  };
+}
+
+function handleBotRuntimeCommand(userText: string): string | null {
+  const text = String(userText ?? "").trim();
+  if (!text.startsWith("/bot")) {
+    return null;
+  }
+
+  const parts = text.split(/\s+/).filter(Boolean);
+  const command = (parts[1] ?? "help").toLowerCase();
+
+  if (command === "help") {
+    return [
+      "Bot runtime commands:",
+      "- /bot config",
+      "- /bot mode <default|json|debug>",
+      "- /bot model <definitionFile>",
+    ].join("\n");
+  }
+
+  if (command === "config") {
+    const current = getBotRuntimeConfig();
+    return [
+      `mode: ${current.mode}`,
+      `definitionFile: ${current.definitionFile}`,
+      `supportedModes: ${getSupportedBotModes().join(", ")}`,
+    ].join("\n");
+  }
+
+  if (command === "mode") {
+    const nextMode = parts[2];
+    if (!nextMode) {
+      return `Missing mode. Use: /bot mode <${getSupportedBotModes().join("|")}>`;
+    }
+
+    try {
+      const updated = setBotRuntimeMode(nextMode);
+      return `Bot mode updated to: ${updated}`;
+    } catch (err: any) {
+      return String(err?.message ?? err);
+    }
+  }
+
+  if (command === "model") {
+    const value = parts.slice(2).join(" ").trim();
+    if (!value) {
+      return "Missing model path/name. Use: /bot model <definitionFile>";
+    }
+
+    try {
+      const updated = setBotDefinitionFile(value);
+      return `Bot definition file updated to: ${updated}`;
+    } catch (err: any) {
+      return String(err?.message ?? err);
+    }
+  }
+
+  return `Unknown /bot command. Use: /bot help`;
 }
 
 function extractResumeValue(activityValue: any) {
