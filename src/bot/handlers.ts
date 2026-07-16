@@ -14,6 +14,7 @@ import {
   retrieveDocumentContext,
 } from "./ragContext";
 import {
+  exchangeOboConnectToken,
   getProcessDetails,
   getProcessSession,
   startProcess,
@@ -56,6 +57,51 @@ export async function handleMessage(
 
   const runtimeConfig = getBotRuntimeConfig();
   const mode = runtimeConfig.mode;
+  const tools = getTools();
+  const availableToolNames = new Set<string>(
+    tools
+      .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
+      .filter(Boolean)
+  );
+
+  console.log(`[TOOLS] ${tools.length} loaded`);
+
+  let resolvedUserPrompt = null;
+
+  try {
+    resolvedUserPrompt = await resolvePrompt(userText);
+
+    if (resolvedUserPrompt) {
+      console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
+    }
+  } catch (err) {
+    console.warn("[PROMPT] resolution failed", err);
+  }
+
+  const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
+  const uploadedDocuments = collectUploadedDocuments(context.activity);
+  const connectToken = await resolveProcessConnectToken(context);
+
+  if (uploadedDocuments.length > 0) {
+    await ingestUploadedDocuments(
+      uploadedDocuments,
+      threadId,
+      context.activity.from?.id,
+      agentTag,
+      context,
+      availableToolNames
+    );
+  }
+
+  const retrievedContext = await retrieveDocumentContext(
+    userText,
+    threadId,
+    context.activity.from?.id,
+    agentTag,
+    context,
+    availableToolNames
+  );
+  const groundedUserQuery = appendDocumentContext(userText, retrievedContext);
 
 
 
@@ -77,22 +123,33 @@ export async function handleMessage(
         if (!invocationResult) {
           await startProcess({
             sessionId: threadId,
-            userQuery: userText,
+            userQuery: groundedUserQuery,
             debugStepper: mode === "debug",
             definitionFile: runtimeConfig.definitionFile,
+            connectToken,
           });
-          invocationResult = await stepProcess(threadId, { resume: resumeValue });
+          invocationResult = await stepProcess(threadId, {
+            resume: resumeValue,
+            env: {
+              userQuery: groundedUserQuery,
+              definitionFile: runtimeConfig.definitionFile,
+            },
+          });
         }
       } else if (await getProcessSession(threadId)) {
         invocationResult = await stepProcess(threadId, {
-          env: { userQuery: userText },
+          env: {
+            userQuery: groundedUserQuery,
+            definitionFile: runtimeConfig.definitionFile,
+          },
         });
       } else {
         invocationResult = await startProcess({
           sessionId: threadId,
-          userQuery: userText,
+          userQuery: groundedUserQuery,
           debugStepper: mode === "debug",
           definitionFile: runtimeConfig.definitionFile,
+          connectToken,
         });
       }
 
@@ -168,6 +225,8 @@ export async function handleMessage(
     }
   } else {
 
+    // default mode
+
     const resumeValue = extractResumeValue(context.activity.value);
     let agentGraph: any;
     let runtimePrompt = userText;
@@ -175,56 +234,9 @@ export async function handleMessage(
     // GET RUNTIME TOOLS
     // ---------------------------------------------------
 
-    const tools = getTools();
-    const availableToolNames = new Set<string>(
-      tools
-        .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
-        .filter(Boolean)
-    );
-
-    console.log(`[TOOLS] ${tools.length} loaded`);
-
-    // ---------------------------------------------------
-    // RESOLVE MCP PROMPT
-    // ---------------------------------------------------
-
-    let resolvedUserPrompt = null;
-
-    try {
-      resolvedUserPrompt = await resolvePrompt(userText);
-
-      if (resolvedUserPrompt) {
-        console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
-      }
-    } catch (err) {
-      console.warn("[PROMPT] resolution failed", err);
-    }
-
-    const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
-    const uploadedDocuments = collectUploadedDocuments(context.activity);
-    if (uploadedDocuments.length > 0) {
-      await ingestUploadedDocuments(
-        uploadedDocuments,
-        threadId,
-        context.activity.from?.id,
-        agentTag,
-        context,
-        availableToolNames
-      );
-    }
-
     switch (mode) {
       case "default": {
         runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, userText);
-
-        const retrievedContext = await retrieveDocumentContext(
-          userText,
-          threadId,
-          context.activity.from?.id,
-          agentTag,
-          context,
-          availableToolNames
-        );
         runtimePrompt = appendDocumentContext(runtimePrompt, retrievedContext);
 
         agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
@@ -644,4 +656,58 @@ function buildDebugStepperCardFromSummary(stateSummary: any) {
       },
     ],
   };
+}
+
+async function resolveProcessConnectToken(context: any): Promise<string | undefined> {
+  if (!isProcessManagerGraphCallsEnabled()) {
+    return undefined;
+  }
+
+  const ssoToken = extractSsoToken(context);
+  if (!ssoToken) {
+    return undefined;
+  }
+
+  try {
+    const connectToken = await exchangeOboConnectToken(ssoToken);
+    return connectToken ?? undefined;
+  } catch (err) {
+    console.warn("[AUTH] unable to exchange process connect token", err);
+    return undefined;
+  }
+}
+
+function isProcessManagerGraphCallsEnabled(): boolean {
+  return parseBooleanEnv(
+    process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS ??
+      process.env.PROCESS_MANAGER_USE_GRAPH_CALLS
+  );
+}
+
+function parseBooleanEnv(value: string | undefined): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
+function extractSsoToken(context: any): string | null {
+  const candidates = [
+    context?.activity?.value?.authentication?.token,
+    context?.activity?.value?.authentication?.ssotoken,
+    context?.activity?.value?.authentication?.ssoToken,
+    context?.activity?.value?.ssoToken,
+    context?.activity?.value?.ssotoken,
+    context?.activity?.value?.teamsToken,
+    context?.activity?.value?.token,
+    context?.activity?.channelData?.authentication?.token,
+    context?.activity?.channelData?.authentication?.ssotoken,
+    context?.turnState?.get?.("ssoToken"),
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
 }

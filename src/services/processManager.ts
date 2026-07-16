@@ -34,6 +34,26 @@ export type ProcessStepRequest = {
   env?: Record<string, any>;
 };
 
+export type ProcessStopRequest = {
+  connectToken?: string;
+};
+
+export type OboExchangeResponse =
+  | string
+  | {
+      connectToken?: string;
+      token?: string;
+      accessToken?: string;
+      ssoToken?: string;
+      ssotoken?: string;
+      teamsToken?: string;
+      data?: unknown;
+      result?: unknown;
+      payload?: unknown;
+    }
+  | null
+  | undefined;
+
 const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
 const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
 
@@ -52,6 +72,50 @@ function buildApiUrl(path: string) {
     .replace(/\/+$/, "");
   const cleanPath = path.replace(/^\/+/, "");
   return `${getProcessManagerBaseUrl()}${prefix}/${cleanPath}`;
+}
+
+function readTokenFromExchangeResponse(response: OboExchangeResponse): string | null {
+  if (!response) {
+    return null;
+  }
+
+  if (typeof response === "string") {
+    const trimmed = response.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    try {
+      return readTokenFromExchangeResponse(JSON.parse(trimmed));
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const candidates = [
+    response.connectToken,
+    response.token,
+    response.accessToken,
+    response.ssoToken,
+    response.ssotoken,
+    response.teamsToken,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  const nestedValues = [response.data, response.result, response.payload];
+  for (const nested of nestedValues) {
+    const token = readTokenFromExchangeResponse(nested as OboExchangeResponse);
+    if (token) {
+      return token;
+    }
+  }
+
+  return null;
 }
 
 function toError(err: unknown, method: Method, path: string) {
@@ -107,9 +171,13 @@ export async function getProcessSession(id: string) {
   return details?.session ?? null;
 }
 
-export async function stopProcess(id: string) {
+export async function stopProcess(id: string, request?: ProcessStopRequest) {
   try {
-    return await requestProcessApi<any>("post", `processes/${encodeURIComponent(id)}/stop`, {});
+    return await requestProcessApi<any>(
+      "post",
+      `processes/${encodeURIComponent(id)}/stop`,
+      request ?? {}
+    );
   } catch (err) {
     if (isNotFoundError(err)) {
       return null;
@@ -153,6 +221,26 @@ export async function visualizeProcess(id: string) {
 
 export async function startProcess(request: ProcessStartRequest) {
   return requestProcessApi<any>("post", "processes/start", request ?? {});
+}
+
+export async function exchangeOboConnectToken(
+  ssoToken: string,
+  scopes: string[] = ["https://graph.microsoft.com/.default"]
+) {
+  const token = String(ssoToken ?? "").trim();
+  if (!token) {
+    return null;
+  }
+
+  const response = await requestProcessApi<OboExchangeResponse>("post", "m365/obo/exchange", {
+    ssoToken: token,
+    ssotoken: token,
+    teamsToken: token,
+    token,
+    scopes,
+  });
+
+  return readTokenFromExchangeResponse(response);
 }
 
 export async function stepProcess(id: string, request: ProcessStepRequest) {
