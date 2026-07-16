@@ -48,7 +48,29 @@ The code expects a few environment variables during local development and deploy
 
 - `OPENAI_API_KEY` - required for the OpenAI model used by the agent
 - `MCP_URL` - URL of the MCP server that provides tool definitions and prompt resources
+- `MCP_URLS` - optional comma-separated list of MCP server URLs; when set, tools are loaded from all servers
 - `CONNECTION_STRING` - MongoDB connection string used for process/session persistence
+
+When using `MCP_URLS`, prompts are currently loaded from the first server in the list, while tools are merged from all configured servers.
+
+Optional document-grounding settings:
+
+- `MCP_DOCUMENT_INGEST_TOOLS` - comma-separated MCP tool names used to ingest uploaded files (default: `ingest_document,ingest_documents,upload_document,index_document`)
+- `MCP_DOCUMENT_SEARCH_TOOLS` - comma-separated MCP tool names used to retrieve context chunks (default: `search_documents,retrieve_documents,query_documents,search_knowledge`)
+- `RAG_AGENT_TAG` - optional fixed agent tag for document metadata scoping (if omitted, tag is inferred from prompt/channel/mode)
+
+Optional local MCP RAG server settings:
+
+- `MCP_RAG_PORT` - local MCP RAG HTTP port (default: `4041`)
+- `RAG_MONGODB_URI` - MongoDB Atlas connection string (falls back to `CONNECTION_STRING`)
+- `RAG_MONGODB_DB` - database name for RAG chunks (default: `semtalk`)
+- `RAG_MONGODB_COLLECTION` - collection name for RAG chunks (default: `ragChunks`)
+- `RAG_VECTOR_INDEX` - Atlas Vector Search index name (default: `rag_vector_index`)
+- `RAG_EMBEDDING_MODEL` - OpenAI embedding model (default: `text-embedding-3-small`)
+- `RAG_MAX_FILE_BYTES` - maximum document size accepted by ingest tool (default: `5242880`)
+- `RAG_CHUNK_SIZE` - character chunk size (default: `900`)
+- `RAG_CHUNK_OVERLAP` - character overlap between chunks (default: `120`)
+- `RAG_FILE_BEARER_TOKEN` - optional bearer token used to download protected file URLs
 
 For local runs, `OPENAI_API_KEY` should be the actual OpenAI key value the app will use at runtime.
 The toolkit source files may contain `SECRET_OPENAI_API_KEY`, but that is only an input secret name.
@@ -107,6 +129,7 @@ Useful scripts from `package.json`:
 npm run dev
 npm run build
 npm run start
+npm run dev:mcp-rag
 ```
 
 The toolkit-specific scripts are:
@@ -128,6 +151,156 @@ The main message flow is:
 - `createStreamingUpdater()` updates the conversation with progress messages
 - the final output is sent as either markdown text or an Adaptive Card attachment
 
+### Uploaded document grounding
+
+The bot now supports user file uploads in Teams and can use uploaded content as context.
+
+Flow:
+
+1. User uploads one or more files in chat.
+2. `src/bot/handlers.ts` reads attachment metadata from the incoming activity.
+3. The bot attempts to call an MCP ingestion tool (for indexing/chunking).
+4. Before response generation, the bot attempts to call an MCP search tool with the user query.
+5. Retrieved chunks are appended to the runtime prompt as `Document context` and the model is asked to cite chunk numbers.
+
+Note: the MCP server must provide compatible ingestion and retrieval tools for full RAG behavior.
+
+### MongoDB Atlas as RAG store
+
+MongoDB Atlas is a good fit for this flow. The bot now sends agent-aware metadata in MCP calls so your ingestion/retrieval layer can isolate knowledge per agent.
+
+Suggested document shape in Atlas:
+
+```json
+{
+  "_id": "...",
+  "agent": "process-agent",
+  "conversationId": "...",
+  "userId": "...",
+  "source": "teams-attachment",
+  "title": "my-spec.pdf",
+  "text": "chunk text...",
+  "embedding": [0.0123, -0.044, ...],
+  "tags": ["teams", "upload", "agent:process-agent"],
+  "createdAt": "2026-07-16T10:00:00.000Z"
+}
+```
+
+Recommended Atlas indexing strategy:
+
+1. Atlas Vector Search index on `embedding`.
+2. Supporting filter fields in metadata (`agent`, `conversationId`, optionally `userId`).
+3. Retrieval query should include an `agent` filter so one agent does not read another agent's context.
+
+The bot sends these fields to MCP tools:
+
+- Ingest: `agent`, `metadata.agent`, `metadata.tags`
+- Search: `agent`, `filter.agent.$eq`
+
+#### MCP contract used by this bot
+
+The bot now sends a versioned payload contract (`schemaVersion: rag-v1`) while preserving backward-compatible fields.
+
+Ingest request shape:
+
+```json
+{
+  "schemaVersion": "rag-v1",
+  "operation": "ingest",
+  "documents": [
+    {
+      "documentId": "<attachment-id>",
+      "title": "<filename>",
+      "contentType": "application/pdf",
+      "url": "<download-or-content-url>",
+      "source": "teams-attachment",
+      "metadata": {
+        "agent": "process-agent",
+        "tags": ["teams", "upload", "agent:process-agent"],
+        "conversationId": "<conversation-id>",
+        "userId": "<aad-or-channel-user-id>",
+        "tenantId": "<tenant-id>"
+      }
+    }
+  ],
+  "context": {
+    "agent": "process-agent",
+    "conversationId": "<conversation-id>",
+    "userId": "<user-id>",
+    "tenantId": "<tenant-id>",
+    "tags": ["teams", "upload", "agent:process-agent"]
+  }
+}
+```
+
+Search request shape:
+
+```json
+{
+  "schemaVersion": "rag-v1",
+  "operation": "search",
+  "query": "how do we approve invoices?",
+  "topK": 3,
+  "context": {
+    "agent": "process-agent",
+    "conversationId": "<conversation-id>",
+    "userId": "<user-id>",
+    "tenantId": "<tenant-id>",
+    "tags": ["teams", "upload", "agent:process-agent"]
+  },
+  "filters": {
+    "agent": "process-agent",
+    "conversationId": "<conversation-id>",
+    "tenantId": "<tenant-id>"
+  }
+}
+```
+
+Expected search response shape (the bot accepts this and also looser formats):
+
+```json
+{
+  "chunks": [
+    {
+      "title": "Invoice Policy",
+      "source": "sharepoint://finance/invoice-policy.pdf",
+      "text": "Approvals over $10,000 require director sign-off..."
+    }
+  ]
+}
+```
+
+#### Atlas retrieval pipeline example
+
+After embedding the query in your MCP service, use Atlas Vector Search with an agent filter:
+
+```javascript
+[
+  {
+    $vectorSearch: {
+      index: "rag_vector_index",
+      path: "embedding",
+      queryVector: queryEmbedding,
+      numCandidates: 150,
+      limit: topK,
+      filter: {
+        agent: context.agent,
+        tenantId: context.tenantId
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      title: 1,
+      source: "$metadata.source",
+      text: "$text",
+      score: { $meta: "vectorSearchScore" }
+    }
+  }
+]
+```
+
 If the response parses as Adaptive Card JSON, the bot sends it as a card attachment instead of plain text.
 
 ## Prompt Routing
@@ -141,6 +314,27 @@ Prompt routing now follows a single documented MCP prompt lane:
 If no prompt scores highly enough, the bot falls back to the default runtime prompt.
 
 This means the bot is not using hard-coded prompt names anymore. It uses the MCP prompt registry for reusable user prompts and lets the MCP server define the prompt content.
+
+## Local MCP RAG Server (PDF, DOCX, TXT)
+
+The repo includes a local MCP server implementation at `src/mcpServer/ragServer.ts` with two tools:
+
+- `ingest_documents` - validates and ingests PDF, DOCX, and TXT files into MongoDB Atlas
+- `search_documents` - runs Atlas Vector Search with agent-aware filters
+
+Run locally:
+
+```bash
+npm run dev:mcp-rag
+```
+
+Point the bot to this MCP endpoint:
+
+```bash
+MCP_URL=http://localhost:4041/mcp
+```
+
+Important: ensure your Atlas collection has a vector index matching `RAG_VECTOR_INDEX` and that your chunk documents include an `embedding` vector field.
 
 ## Azure Deployment
 
@@ -176,4 +370,4 @@ The parameter file currently expects:
 - [infra/azure.bicep](./infra/azure.bicep)
 - [m365agents.yml](./m365agents.yml)
 
-http://localhost:3978/processes-ui
+<http://localhost:3978/processes-ui>

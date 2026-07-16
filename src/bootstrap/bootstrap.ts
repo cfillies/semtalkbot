@@ -1,4 +1,4 @@
-import { initMcpClient } from "../mcp/mcpClient";
+import { initMcpClients } from "../mcp/mcpClient";
 import { buildToolRegistry } from "../mcp/mcpToolsAdapter";
 import { loadPromptRegistry } from "../mcp/mcpPromptsAdapter";
 
@@ -10,12 +10,14 @@ export async function bootstrap(): Promise<AppContext> {
 
   console.log("[BOOT] starting MCP bootstrap...");
 
-  const mcpClient = await initMcpClient();
+  const mcpClients = await initMcpClients();
 
-  await mcpClient.ping?.();
+  for (const client of mcpClients) {
+    await client.ping?.();
+  }
 
   await loadPromptRegistry();
-  await buildToolRegistry(mcpClient);
+  await buildToolRegistry(mcpClients);
 
   console.log("[BOOT] MCP ready");
 

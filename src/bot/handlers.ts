@@ -7,6 +7,13 @@ import { MessageFactory } from "@microsoft/agents-hosting";
 import { Command } from "@langchain/langgraph";
 import { parseResponseContent } from "../runtime/responseFormat";
 import {
+  appendDocumentContext,
+  collectUploadedDocuments,
+  ingestUploadedDocuments,
+  resolveAgentTag,
+  retrieveDocumentContext,
+} from "./ragContext";
+import {
   getProcessDetails,
   getProcessSession,
   startProcess,
@@ -28,6 +35,7 @@ export async function handleMessage(
   // ---------------------------------------------------
 
   const userText = context.activity.text ?? "";
+  const threadId = context.activity.conversation?.id ?? "default";
 
   console.log("[USER]", userText);
 
@@ -38,7 +46,6 @@ export async function handleMessage(
   // ---------------------------------------------------
 
   if (mode === "json" || mode === "debug") {
-    let threadId = context.activity.conversation?.id ?? "default";
     const resumeValue = extractResumeValue(context.activity.value);
     const streamer = await createStreamingUpdater(context);
 
@@ -141,7 +148,6 @@ export async function handleMessage(
     }
   } else {
 
-    let threadId = context.activity.conversation?.id ?? "default";
     const resumeValue = extractResumeValue(context.activity.value);
     let agentGraph: any;
     let runtimePrompt = userText;
@@ -150,9 +156,13 @@ export async function handleMessage(
     // ---------------------------------------------------
 
     const tools = getTools();
+    const availableToolNames = new Set<string>(
+      tools
+        .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
+        .filter(Boolean)
+    );
 
     console.log(`[TOOLS] ${tools.length} loaded`);
-
 
     // ---------------------------------------------------
     // RESOLVE MCP PROMPT
@@ -170,9 +180,33 @@ export async function handleMessage(
       console.warn("[PROMPT] resolution failed", err);
     }
 
+    const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
+    const uploadedDocuments = collectUploadedDocuments(context.activity);
+    if (uploadedDocuments.length > 0) {
+      await ingestUploadedDocuments(
+        uploadedDocuments,
+        threadId,
+        context.activity.from?.id,
+        agentTag,
+        context,
+        availableToolNames
+      );
+    }
+
     switch (mode) {
       case "default": {
         runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, userText);
+
+        const retrievedContext = await retrieveDocumentContext(
+          userText,
+          threadId,
+          context.activity.from?.id,
+          agentTag,
+          context,
+          availableToolNames
+        );
+        runtimePrompt = appendDocumentContext(runtimePrompt, retrievedContext);
+
         agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
         break;
       }
