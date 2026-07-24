@@ -8,13 +8,13 @@ type UploadedDocument = {
   downloadUrl?: string;
 };
 
-type RetrievedChunk = {
+export type RetrievedChunk = {
   title?: string;
   source?: string;
   text: string;
 };
 
-type RagContext = {
+export type RagContext = {
   agent?: string;
   conversationId: string;
   userId?: string;
@@ -77,22 +77,22 @@ export async function ingestUploadedDocuments(
   const args = buildIngestArguments(documents, ragContext);
   const candidates = pickSupportedTools(INGEST_TOOL_CANDIDATES, availableToolNames);
 
-  if (!candidates.length) {
-    console.log("[DOCS] no supported ingest tool found on current MCP server");
-    return;
-  }
+  if (candidates.length > 0) {
+    for (const toolName of candidates) {
+      try {
+        const result = await callMcpTool(toolName, args);
 
-  for (const toolName of candidates) {
-    try {
-      const result = await callMcpTool(toolName, args);
-
-      const summary = extractTextFromToolResult(result);
-      console.log(`[DOCS] ingested with ${toolName}: ${summary}`);
-      return;
-    } catch (err) {
-      console.debug(`[DOCS] ingest tool ${toolName} unavailable or failed`, err);
+        const summary = extractTextFromToolResult(result);
+        console.log(`[DOCS] ingested with ${toolName}: ${summary}`);
+        return;
+      } catch (err) {
+        console.debug(`[DOCS] ingest tool ${toolName} unavailable or failed`, err);
+      }
     }
+    // console.log("[DOCS] no supported ingest tool found on current MCP server");
+    // return;
   }
+
 
   console.log("[DOCS] all supported ingest tools failed");
 }
@@ -209,6 +209,12 @@ function normalizeRetrievedChunks(result: any): RetrievedChunk[] {
       return parsed
         .map((item) => normalizeRetrievedChunk(item))
         .filter((item): item is RetrievedChunk => Boolean(item));
+    }
+    if (parsed.content) {
+      const contentArray = Array.isArray(parsed.content) ? parsed.content : [parsed.content];
+      return contentArray
+        .map((item: any) => normalizeRetrievedChunk(item))
+        .filter((item: any): item is RetrievedChunk => Boolean(item));
     }
 
     if (Array.isArray(parsed?.chunks)) {

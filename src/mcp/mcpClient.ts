@@ -38,6 +38,8 @@ export async function initMcpClients() {
 }
 
 function getMcpUrls() {
+  // return [
+  //   "http://localhost:7073/runtime/webhooks/mcp"];
   const mcpUrls = process.env.MCP_URLS;
   if (mcpUrls?.trim()) {
     const parsed = mcpUrls
@@ -56,7 +58,7 @@ function getMcpUrls() {
 
   return [
     "https://semaiservice26.azurewebsites.net/runtime/webhooks/mcp" +
-      "?code=m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==",
+    "?code=m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==",
   ];
 }
 

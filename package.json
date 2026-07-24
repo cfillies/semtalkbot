@@ -12,7 +12,7 @@
         "dev:teamsfx": "env-cmd --silent -f .localConfigs npm run dev",
         "dev:teamsfx:playground": "env-cmd --silent -f .localConfigs.playground npm run dev",
         "dev:teamsfx:launch-playground": "env-cmd --silent -f env/.env.playground teamsapptester start",
-        "dev:mcp-rag": "node -r ts-node/register ./src/mcpServer/ragServer.ts",
+        "dev:mcp-rag": "node -r ts-node/register ./src/ragServer/ragServer.ts",
         "dev": "nodemon --exec node --inspect=9239 --signal SIGINT -r ts-node/register ./src/index.ts",
         "build": "tsc --build",
         "start": "node ./lib/src/index.js",
@@ -30,9 +30,6 @@
         "@microsoft/agents-hosting-express": "^1.0.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "axios": "^1.13.1",
-        "mammoth": "^1.11.0",
-        "mongodb": "^6.20.0",
-        "pdf-parse": "^1.1.4",
         "uuid": "^14.0.1",
         "zod": "^3.25.67"
     },

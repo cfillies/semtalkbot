@@ -11,6 +11,7 @@ import {
   collectUploadedDocuments,
   ingestUploadedDocuments,
   resolveAgentTag,
+  RetrievedChunk,
   retrieveDocumentContext,
 } from "./ragContext";
 import {
@@ -91,9 +92,11 @@ export async function handleMessage(
       context,
       availableToolNames
     );
+    // return;
   }
 
-  const retrievedContext = await retrieveDocumentContext(
+  // let retrievedContext: RetrievedChunk[] = [];
+  let retrievedContext = await retrieveDocumentContext(
     userText,
     threadId,
     context.activity.from?.id,
@@ -103,7 +106,7 @@ export async function handleMessage(
   );
   const groundedUserQuery = appendDocumentContext(userText, retrievedContext);
 
-
+  // const groundedUserQuery = userText;
 
   // ---------------------------------------------------
   // INVOKE PROCESS MANAGER FOR JSON/DEBUG MODES
@@ -680,7 +683,7 @@ async function resolveProcessConnectToken(context: any): Promise<string | undefi
 function isProcessManagerGraphCallsEnabled(): boolean {
   return parseBooleanEnv(
     process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS ??
-      process.env.PROCESS_MANAGER_USE_GRAPH_CALLS
+    process.env.PROCESS_MANAGER_USE_GRAPH_CALLS
   );
 }
 

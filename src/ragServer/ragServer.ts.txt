@@ -97,13 +97,7 @@ const searchSchema = z.object({
   userId: z.string().optional(),
 }).passthrough();
 
-server.registerTool(
-  "ingest_documents",
-  {
-    description: "Ingest PDF, DOCX, TXT documents into MongoDB Atlas vector store.",
-    inputSchema: ingestSchema,
-  },
-  async (args) => {
+export async function ingest_documents (args: any): Promise<any> {
     ensureConfig();
     const collection = await getCollection();
     const context = resolveContext(args);
@@ -189,15 +183,17 @@ server.registerTool(
       ],
     };
   }
-);
 
 server.registerTool(
-  "search_documents",
+  "ingest_documents",
   {
-    description: "Semantic search over ingested RAG chunks from MongoDB Atlas.",
-    inputSchema: searchSchema,
+    description: "Ingest PDF, DOCX, TXT documents into MongoDB Atlas vector store.",
+    inputSchema: ingestSchema,
   },
-  async (args) => {
+  ingest_documents
+);
+
+export async function search_documents(args: any): Promise<any> {
     ensureConfig();
     const collection = await getCollection();
     const context = resolveContext(args);
@@ -242,7 +238,16 @@ server.registerTool(
       ],
     };
   }
+
+  server.registerTool(
+  "search_documents",
+  {
+    description: "Semantic search over ingested RAG chunks from MongoDB Atlas.",
+    inputSchema: searchSchema,
+  },
+  search_documents
 );
+
 
 async function getCollection() {
   if (!mongoConnected) {

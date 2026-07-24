@@ -10,7 +10,7 @@ export function createProcessAgentNode(
     state: RuntimeStateType
   ): Promise<Partial<RuntimeStateType>> {
 
-    console.log("[PROCESS AGENT]", state.userQuery);
+    // console.log("[PROCESS AGENT]", state.userQuery);
 
     const result = await agent.invoke(
       {
