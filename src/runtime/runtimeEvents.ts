@@ -4,6 +4,7 @@ export type RuntimeEvent = {
     | "status"
     | "tool-start"
     | "tool-end"
+    | "tool-error"
     | "llm";
 
   message: string;

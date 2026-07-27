@@ -10,6 +10,7 @@ import {
   appendDocumentContext,
   collectUploadedDocuments,
   ingestUploadedDocuments,
+  extractDocumentsForContext,
   resolveAgentTag,
   RetrievedChunk,
   retrieveDocumentContext,
@@ -26,6 +27,7 @@ import {
   getSupportedBotModes,
   setBotDefinitionFile,
   setBotRuntimeMode,
+  setDocumentHandlingMode,
 } from "../config/botRuntimeConfig";
 
 // -----------------------------------------------------
@@ -46,10 +48,34 @@ export async function handleMessage(
   // USER INPUT
   // ---------------------------------------------------
 
-  const userText = context.activity.text ?? "";
+  let userText = context.activity.text ?? "";
   const threadId = context.activity.conversation?.id ?? "default";
+  let ragModeOverride = false;
 
   console.log("[USER]", userText);
+
+  // Check for /rag command to override document handling mode
+  if (userText.trim().toLowerCase().startsWith("/rag")) {
+    ragModeOverride = true;
+    setDocumentHandlingMode("rag");
+    // Strip /rag from the beginning and trim whitespace
+    userText = userText.replace(/^\/rag\s*/i, "").trim();
+    console.log("[COMMAND] /rag - documents will be ingested to RAG backend");
+  }
+
+  // Check for /help command
+  if (userText.trim().toLowerCase() === "/help") {
+    return [
+      "Bot runtime commands:",
+      "- /bot config",
+      "- /bot mode <default|json|debug>",
+      "- /bot model <definitionFile>",
+      "",
+      "Document handling commands:",
+      "- /rag <message> - Ingest attached documents to RAG backend for this message",
+      "  (Default mode: documents are added to chat context)",
+    ].join("\n");
+  }
 
   const commandResponse = handleBotRuntimeCommand(userText);
   if (commandResponse) {
@@ -83,7 +109,8 @@ export async function handleMessage(
   const uploadedDocuments = collectUploadedDocuments(context.activity);
   const connectToken = await resolveProcessConnectToken(context);
 
-  if (uploadedDocuments.length > 0) {
+  if (runtimeConfig.documentHandlingMode === "rag" && uploadedDocuments.length > 0) {
+    console.log(`[MESSAGE] Processing ${uploadedDocuments.length} uploaded document(s) in RAG mode - sending to backend`);
     await ingestUploadedDocuments(
       uploadedDocuments,
       threadId,
@@ -93,6 +120,8 @@ export async function handleMessage(
       availableToolNames
     );
     // return;
+  } else if (context.activity.attachments?.length > 0) {
+    console.log(`[MESSAGE] Activity has ${context.activity.attachments.length} attachment(s) but none were collected. Attachment structure:`, JSON.stringify(context.activity.attachments, null, 2));
   }
 
   // let retrievedContext: RetrievedChunk[] = [];
@@ -104,9 +133,16 @@ export async function handleMessage(
     context,
     availableToolNames
   );
-  const groundedUserQuery = appendDocumentContext(userText, retrievedContext);
+  let groundedUserQuery = appendDocumentContext(userText, retrievedContext);
 
-  // const groundedUserQuery = userText;
+  // If in context mode and have uploaded documents, extract and append their content
+  if (runtimeConfig.documentHandlingMode === "context" && uploadedDocuments.length > 0) {
+    console.log("[MESSAGE] Extracting document content for context mode");
+    const documentContent = await extractDocumentsForContext(uploadedDocuments);
+    if (documentContent) {
+      groundedUserQuery += documentContent;
+    }
+  }
 
   // ---------------------------------------------------
   // INVOKE PROCESS MANAGER FOR JSON/DEBUG MODES
@@ -232,14 +268,14 @@ export async function handleMessage(
 
     const resumeValue = extractResumeValue(context.activity.value);
     let agentGraph: any;
-    let runtimePrompt = userText;
+    let runtimePrompt = groundedUserQuery;
     // ---------------------------------------------------
     // GET RUNTIME TOOLS
     // ---------------------------------------------------
 
     switch (mode) {
       case "default": {
-        runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, userText);
+        runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, groundedUserQuery);
         runtimePrompt = appendDocumentContext(runtimePrompt, retrievedContext);
 
         agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
@@ -322,6 +358,12 @@ export async function handleMessage(
         console.warn("[STREAMER] complete failed", streamError);
       }
       return "Sorry, I encountered an internal error while generating the response. Please try again.";
+    } finally {
+      // Reset document mode if it was overridden by /rag command
+      if (ragModeOverride) {
+        setDocumentHandlingMode("context");
+        console.log("[CLEANUP] Document mode reset to context");
+      }
     }
   }
 }
@@ -470,6 +512,10 @@ function handleBotRuntimeCommand(userText: string): string | null {
       "- /bot config",
       "- /bot mode <default|json|debug>",
       "- /bot model <definitionFile>",
+      "",
+      "Document handling commands:",
+      "- /rag <message> - Ingest attached documents to RAG backend for this message",
+      "  (Default mode: documents are added to chat context)",
     ].join("\n");
   }
 

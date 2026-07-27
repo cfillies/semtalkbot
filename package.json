@@ -30,6 +30,8 @@
         "@microsoft/agents-hosting-express": "^1.0.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "axios": "^1.13.1",
+        "mammoth": "^1.8.0",
+        "pdf-parse": "^1.1.1",
         "uuid": "^14.0.1",
         "zod": "^3.25.67"
     },

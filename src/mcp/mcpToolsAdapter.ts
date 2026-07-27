@@ -35,15 +35,28 @@ export async function buildToolRegistry(clients: any[]) {
           // Log the args for debugging duplicate invocations
           console.debug(`[MCP] calling tool ${t.name} with args:`, args);
 
-          const result = await callMcpTool(t.name, args);
+          try {
+            const result = await callMcpTool(t.name, args);
 
-          await emitRuntimeEvent({
-            type: "tool-end",
-            message: `${t.name} completed`,
-          });
+            await emitRuntimeEvent({
+              type: "tool-end",
+              message: `${t.name} completed`,
+            });
 
-          const text = result?.content?.[0]?.text;
-          return text ?? JSON.stringify(result);
+            const text = result?.content?.[0]?.text;
+            return text ?? JSON.stringify(result);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`[MCP] tool ${t.name} failed:`, errorMessage);
+
+            await emitRuntimeEvent({
+              type: "tool-error",
+              message: `${t.name} failed: ${errorMessage}`,
+            });
+
+            // Return error message to LLM for context
+            return `Tool error: ${errorMessage}`;
+          }
         },
       });
 
@@ -65,6 +78,11 @@ export async function callMcpTool(name: string, args: any) {
   const client = toolClientMap.get(name);
   if (!client) {
     throw new Error(`No MCP client registered for tool: ${name}`);
+  }
+
+  // Prevent calling "find*" tools without arguments
+  if (name.toLowerCase().startsWith("find") && (!args || Object.keys(args).length === 0)) {
+    throw new Error(`Cannot call tool "${name}" without arguments - search tools require parameters`);
   }
 
   return client.callTool({

@@ -1,4 +1,7 @@
 import { callMcpTool } from "../mcp/mcpToolsAdapter";
+import { ingestDocumentsToBackend, searchDocumentsInBackend, type UploadedDocument as DocumentServiceUploadedDocument, type SearchedChunk } from "../services/documentService";
+import { parseDocumentContent, formatDocumentsForContext, type ParsedDocument } from "../services/documentParser";
+import { getBotRuntimeConfig } from "../config/botRuntimeConfig";
 
 type UploadedDocument = {
   id?: string;
@@ -51,18 +54,40 @@ const SEARCH_TOOL_CANDIDATES = parseCsvEnv("MCP_DOCUMENT_SEARCH_TOOLS", [
 export function collectUploadedDocuments(activity: any): UploadedDocument[] {
   const attachments = Array.isArray(activity?.attachments) ? activity.attachments : [];
 
-  return attachments
-    .map((attachment: any) => {
+  const documents = attachments
+    .map((attachment: any, index: number) => {
       const content = attachment?.content && typeof attachment.content === "object" ? attachment.content : {};
-      return {
+      
+      // Debug logging for first few attachments to help diagnose desktop client issues
+      if (index === 0) {
+        console.log(`[DOCS] First attachment structure:`, JSON.stringify(attachment, null, 2));
+      }
+
+      const doc = {
         id: content?.id ?? attachment?.id,
         name: content?.name ?? attachment?.name,
-        contentType: attachment?.contentType,
-        contentUrl: attachment?.contentUrl,
-        downloadUrl: content?.downloadUrl ?? content?.downloadUrl,
+        contentType: attachment?.contentType ?? content?.contentType,
+        // Try multiple fallback chains for URLs (web and desktop clients may differ)
+        contentUrl: attachment?.contentUrl ?? content?.contentUrl ?? attachment?.content?.contentUrl,
+        downloadUrl: content?.downloadUrl ?? attachment?.downloadUrl ?? attachment?.content?.downloadUrl,
       };
+
+      // Debug any attachment that doesn't have a URL
+      if (!doc.downloadUrl && !doc.contentUrl) {
+        console.warn(`[DOCS] Attachment ${index} (${doc.name || 'unnamed'}) has no download/content URL:`, JSON.stringify(attachment, null, 2));
+      }
+
+      return doc;
     })
     .filter((doc: UploadedDocument) => Boolean(doc.contentUrl || doc.downloadUrl || doc.id || doc.name));
+
+  if (documents.length > 0) {
+    console.log(`[DOCS] collected ${documents.length} attachment(s):`, documents.map((d: any) => ({ name: d.name, contentType: d.contentType, id: d.id, hasUrl: Boolean(d.downloadUrl || d.contentUrl) })));
+  } else if (attachments.length > 0) {
+    console.warn(`[DOCS] ${attachments.length} attachment(s) present but none were collected (no valid URLs found)`);
+  }
+
+  return documents;
 }
 
 export async function ingestUploadedDocuments(
@@ -73,28 +98,90 @@ export async function ingestUploadedDocuments(
   context?: any,
   availableToolNames?: Set<string>
 ) {
-  const ragContext = buildRagContext(conversationId, userId, agentTag, context);
-  const args = buildIngestArguments(documents, ragContext);
-  const candidates = pickSupportedTools(INGEST_TOOL_CANDIDATES, availableToolNames);
-
-  if (candidates.length > 0) {
-    for (const toolName of candidates) {
-      try {
-        const result = await callMcpTool(toolName, args);
-
-        const summary = extractTextFromToolResult(result);
-        console.log(`[DOCS] ingested with ${toolName}: ${summary}`);
-        return;
-      } catch (err) {
-        console.debug(`[DOCS] ingest tool ${toolName} unavailable or failed`, err);
-      }
-    }
-    // console.log("[DOCS] no supported ingest tool found on current MCP server");
-    // return;
+  if (!documents.length) {
+    console.log("[DOCS] no documents to ingest");
+    return;
   }
 
+  const runtimeConfig = getBotRuntimeConfig();
+  const documentMode = runtimeConfig.documentHandlingMode;
 
-  console.log("[DOCS] all supported ingest tools failed");
+  console.log(`[DOCS] processing ${documents.length} document(s) in "${documentMode}" mode`);
+
+  // Extract tenant ID from context
+  const tenantId =
+    context?.activity?.conversation?.tenantId ??
+    context?.activity?.channelData?.tenant?.id ??
+    context?.activity?.channelData?.tenantId;
+
+  if (documentMode === "rag") {
+    // RAG Mode: Send to backend for MongoDB ingestion
+    console.log("[DOCS] RAG mode: Sending documents to backend service");
+
+    const result = await ingestDocumentsToBackend(documents, {
+      conversationId,
+      userId,
+      tenantId: typeof tenantId === "string" ? tenantId : undefined,
+      agentTag,
+      tags: buildTags(agentTag),
+    });
+
+    if (result.success) {
+      console.log(`[DOCS] Backend ingestion successful: ${result.message}`);
+    } else {
+      console.warn(`[DOCS] Backend ingestion failed: ${result.message}`);
+    }
+    return;
+  }
+
+  // Context mode: documents are handled locally via parsing
+  // They will be added to agent context via appendDocumentContext()
+  console.log("[DOCS] Context mode: Documents will be parsed and added to agent context (handled elsewhere)");
+}
+
+/**
+ * Extract and format document content for inclusion in agent context
+ * Only called in "context" mode - parses documents locally and returns formatted content
+ */
+export async function extractDocumentsForContext(
+  documents: UploadedDocument[]
+): Promise<string> {
+  if (!documents.length) {
+    return "";
+  }
+
+  console.log(`[DOCS] Extracting content from ${documents.length} document(s) for context`);
+
+  const parsedDocs: ParsedDocument[] = [];
+
+  for (const doc of documents) {
+    if (!doc.downloadUrl && !doc.contentUrl) {
+      console.warn(`[DOCS] Skipping document ${doc.name}: no download URL available`);
+      continue;
+    }
+
+    const url = doc.downloadUrl || doc.contentUrl;
+    if (!url) continue;
+
+    try {
+      const parsed = await parseDocumentContent(url, doc.name || "unknown", doc.contentType);
+      if (parsed) {
+        parsedDocs.push(parsed);
+      }
+    } catch (error) {
+      console.error(`[DOCS] Failed to extract content from ${doc.name}:`, error);
+    }
+  }
+
+  if (!parsedDocs.length) {
+    console.log("[DOCS] No documents were successfully parsed");
+    return "";
+  }
+
+  const formatted = formatDocumentsForContext(parsedDocs);
+  console.log(`[DOCS] Formatted ${parsedDocs.length} document(s) for context: ${Math.round(formatted.length / 1024)}KB`);
+
+  return formatted;
 }
 
 export async function retrieveDocumentContext(
@@ -109,29 +196,59 @@ export async function retrieveDocumentContext(
     return [];
   }
 
-  const ragContext = buildRagContext(conversationId, userId, agentTag, context);
-  const args = buildSearchArguments(query, ragContext);
-  const candidates = pickSupportedTools(SEARCH_TOOL_CANDIDATES, availableToolNames);
+  // Extract tenant ID from context
+  const tenantId =
+    context?.activity?.conversation?.tenantId ??
+    context?.activity?.channelData?.tenant?.id ??
+    context?.activity?.channelData?.tenantId;
 
-  if (!candidates.length) {
-    console.log("[DOCS] no supported search tool found on current MCP server");
-    return [];
+  // Try backend REST API first
+  console.log("[DOCS] Searching backend via REST API for: " + query);
+  const backendChunks = await searchDocumentsInBackend(
+    query,
+    conversationId,
+    userId,
+    agentTag,
+    typeof tenantId === "string" ? tenantId : undefined,
+    3 // topK
+  );
+
+  if (backendChunks.length > 0) {
+    console.log(`[DOCS] Retrieved ${backendChunks.length} chunks from backend REST API`);
+    return backendChunks.map((chunk: SearchedChunk) => ({
+      title: chunk.title,
+      source: chunk.source,
+      text: chunk.text,
+    }));
   }
 
-  for (const toolName of candidates) {
-    try {
-      const result = await callMcpTool(toolName, args);
+  if (false) {
 
-      const chunks = normalizeRetrievedChunks(result);
-      if (chunks.length > 0) {
-        console.log(`[DOCS] retrieved ${chunks.length} chunks via ${toolName}`);
-        return chunks;
+    // Fallback to MCP tools if backend search returned no results
+    console.log("[DOCS] No results from backend API, falling back to MCP search tools");
+    const ragContext = buildRagContext(conversationId, userId, agentTag, context);
+    const args = buildSearchArguments(query, ragContext);
+    const candidates = pickSupportedTools(SEARCH_TOOL_CANDIDATES, availableToolNames);
+
+    if (!candidates.length) {
+      console.log("[DOCS] No supported MCP search tool found");
+      return [];
+    }
+
+    for (const toolName of candidates) {
+      try {
+        const result = await callMcpTool(toolName, args);
+
+        const chunks = normalizeRetrievedChunks(result);
+        if (chunks.length > 0) {
+          console.log(`[DOCS] Retrieved ${chunks.length} chunks via MCP tool ${toolName}`);
+          return chunks;
+        }
+      } catch (err) {
+        console.debug(`[DOCS] MCP search tool ${toolName} unavailable or failed`, err);
       }
-    } catch (err) {
-      console.debug(`[DOCS] search tool ${toolName} unavailable or failed`, err);
     }
   }
-
   return [];
 }
 

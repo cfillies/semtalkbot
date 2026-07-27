@@ -49,7 +49,7 @@
                     ],
                     "commands": [
                         {
-                            "title": "Find business processes in our repository",
+                            "title": "Find business processes",
                             "description": "Return a list of Process descriptions for a matching a Process name"
                         },
                         {
@@ -94,7 +94,7 @@
                         },
                         {
                             "name": "definitionFile",
-                            "title": "BPMN Workflow (from SemTalk Library)",
+                            "title": "BPMN Workflow (SemTalk Library)",
                             "description": "Example: langgraph.json",
                             "inputType": "text"
                         }
