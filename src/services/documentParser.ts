@@ -48,7 +48,7 @@ export async function parseDocumentContent(
     const buffer = Buffer.from(response.data);
     // Prioritize response headers content-type over the Teams metadata contentType
     // Teams often sends 'application/vnd.microsoft.teams.file.download.info' which isn't useful
-    const mimeType = response.headers["content-type"] || contentType || inferContentTypeFromFileName(fileName) || "text/plain";
+    const mimeType = (response.headers["content-type"] || contentType || inferContentTypeFromFileName(fileName) || "text/plain") as string;
 
     // Parse based on file type
     let content = "";
