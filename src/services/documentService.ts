@@ -60,7 +60,10 @@ let client: AxiosInstance;
 
 function getDocumentServiceClient(): AxiosInstance {
   if (!client) {
-    const baseUrl = process.env.BACKEND_DOCUMENT_SERVICE_URL || "http://localhost:7073";
+    const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
+    // const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
+    const baseUrl = process.env.BACKEND_DOCUMENT_SERVICE_URL || DEFAULT_PROCESS_MANAGER_URL;
+    // const baseUrl = process.env.BACKEND_DOCUMENT_SERVICE_URL || "http://localhost:7073";
     client = axios.create({
       baseURL: baseUrl,
       timeout: 30000,
