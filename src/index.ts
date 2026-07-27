@@ -28,6 +28,11 @@ async function main() {
     await ctx.sendActivity("Hello");
   });
 
+  // Debug: log which instance we're running
+  const instanceId = process.env.WEBSITE_INSTANCE_ID || "local-dev";
+  const hostname = process.env.COMPUTERNAME || "unknown";
+  console.log(`[BOT-STARTUP] Instance: ${instanceId}, Hostname: ${hostname}, MCP_URL: ${process.env.MCP_URL ? "✓ set" : "✗ MISSING"}`);
+
   const server = startServer(mafApp);
 
   const allowedOrigins = parseAllowedOrigins();
