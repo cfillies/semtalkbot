@@ -12,12 +12,17 @@ export function createProcessAgentNode(
 
     // console.log("[PROCESS AGENT]", state.userQuery);
 
+    // Include previous messages from state to maintain conversation history
+    const previousMessages = state.messages ?? [];
+    const messages = [
+      new SystemMessage(systemPrompt),
+      ...previousMessages,
+      new HumanMessage(state.userQuery ?? "")
+    ];
+
     const result = await agent.invoke(
       {
-        messages: [
-          new SystemMessage(systemPrompt),
-          new HumanMessage(state.userQuery ?? "")
-        ],
+        messages,
       },
       {
         configurable: {
@@ -26,8 +31,8 @@ export function createProcessAgentNode(
       }
     );
 
-    const messages = result?.messages ?? [];
-    const finalMessage = messages[messages.length - 1];
+    const resultMessages = result?.messages ?? [];
+    const finalMessage = resultMessages[resultMessages.length - 1];
     const content =
       typeof finalMessage?.content === "string"
         ? finalMessage.content
@@ -35,6 +40,7 @@ export function createProcessAgentNode(
 
     return {
       processResult: content,
+      messages: resultMessages, // Save messages back to state for conversation continuity
     };
   };
 }

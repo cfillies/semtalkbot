@@ -52,7 +52,19 @@ const SEARCH_TOOL_CANDIDATES = parseCsvEnv("MCP_DOCUMENT_SEARCH_TOOLS", [
 ]);
 
 export function collectUploadedDocuments(activity: any): UploadedDocument[] {
+  const isCopilot = activity?.channelData?.productContext === 'COPILOT';
   const attachments = Array.isArray(activity?.attachments) ? activity.attachments : [];
+
+  if (isCopilot) {
+    console.log(`[DOCS] Copilot chat detected. Attachments found: ${attachments.length}`);
+    if (attachments.length === 0) {
+      console.log(`[DOCS] Note: Copilot chats may pass attachments differently. Activity structure:`, {
+        hasAttachments: !!activity?.attachments,
+        hasEntities: !!activity?.entities,
+        channelDataKeys: Object.keys(activity?.channelData || {})
+      });
+    }
+  }
 
   const documents = attachments
     .map((attachment: any, index: number) => {

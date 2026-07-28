@@ -5,19 +5,26 @@ export type BotRuntimeConfig = {
   mode: BotRuntimeMode;
   definitionFile: string;
   documentHandlingMode: DocumentHandlingMode;
+  enableContextSearch: boolean;
 };
 
 const DEFAULT_DEFINITION_FILE = "langgraph.json";
 const DEFAULT_DOCUMENT_HANDLING_MODE: DocumentHandlingMode = "context";
+const DEFAULT_ENABLE_CONTEXT_SEARCH = true;
 
 const SUPPORTED_MODES: BotRuntimeMode[] = ["default", "json", "debug"];
 const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];
 
-let runtimeConfig: BotRuntimeConfig = {
+// Global default config from environment
+let globalRuntimeConfig: BotRuntimeConfig = {
   mode: readModeFromEnv(),
   definitionFile: readDefinitionFileFromEnv(),
   documentHandlingMode: readDocumentHandlingModeFromEnv(),
+  enableContextSearch: readEnableContextSearchFromEnv(),
 };
+
+// Per-thread/conversation config overrides
+const threadConfigs = new Map<string, Partial<BotRuntimeConfig>>();
 
 function readModeFromEnv(): BotRuntimeMode {
   const raw =
@@ -60,6 +67,12 @@ function readDefinitionFileFromEnv(): string {
   return normalized || DEFAULT_DEFINITION_FILE;
 }
 
+function readEnableContextSearchFromEnv(): boolean {
+  const raw = process.env.BOT_ENABLE_CONTEXT_SEARCH ?? String(DEFAULT_ENABLE_CONTEXT_SEARCH);
+  const normalized = String(raw).trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
 export function getSupportedBotModes() {
   return [...SUPPORTED_MODES];
 }
@@ -68,11 +81,19 @@ export function getSupportedDocumentModes() {
   return [...SUPPORTED_DOCUMENT_MODES];
 }
 
-export function getBotRuntimeConfig(): BotRuntimeConfig {
-  return { ...runtimeConfig };
+export function getBotRuntimeConfig(threadId?: string): BotRuntimeConfig {
+  if (threadId && threadConfigs.has(threadId)) {
+    // Merge thread-specific overrides with global config
+    const threadOverrides = threadConfigs.get(threadId)!;
+    return {
+      ...globalRuntimeConfig,
+      ...threadOverrides,
+    };
+  }
+  return { ...globalRuntimeConfig };
 }
 
-export function setBotRuntimeMode(mode: string): BotRuntimeMode {
+export function setBotRuntimeMode(mode: string, threadId?: string): BotRuntimeMode {
   const normalized = String(mode).trim().toLowerCase();
   if (!(SUPPORTED_MODES as string[]).includes(normalized)) {
     throw new Error(
@@ -80,15 +101,25 @@ export function setBotRuntimeMode(mode: string): BotRuntimeMode {
     );
   }
 
-  runtimeConfig = {
-    ...runtimeConfig,
-    mode: normalized as BotRuntimeMode,
-  };
+  if (threadId) {
+    // Store thread-specific mode
+    const threadConfig = threadConfigs.get(threadId) || {};
+    threadConfig.mode = normalized as BotRuntimeMode;
+    threadConfigs.set(threadId, threadConfig);
+    console.log(`[BOT] mode set to "${normalized}" for thread ${threadId}`);
+  } else {
+    // Update global config
+    globalRuntimeConfig = {
+      ...globalRuntimeConfig,
+      mode: normalized as BotRuntimeMode,
+    };
+    console.log(`[BOT] global mode set to "${normalized}"`);
+  }
 
-  return runtimeConfig.mode;
+  return normalized as BotRuntimeMode;
 }
 
-export function setDocumentHandlingMode(mode: string): DocumentHandlingMode {
+export function setDocumentHandlingMode(mode: string, threadId?: string): DocumentHandlingMode {
   const normalized = String(mode).trim().toLowerCase();
   if (!(SUPPORTED_DOCUMENT_MODES as string[]).includes(normalized)) {
     throw new Error(
@@ -96,25 +127,53 @@ export function setDocumentHandlingMode(mode: string): DocumentHandlingMode {
     );
   }
 
-  runtimeConfig = {
-    ...runtimeConfig,
-    documentHandlingMode: normalized as DocumentHandlingMode,
-  };
+  if (threadId) {
+    const threadConfig = threadConfigs.get(threadId) || {};
+    threadConfig.documentHandlingMode = normalized as DocumentHandlingMode;
+    threadConfigs.set(threadId, threadConfig);
+  } else {
+    globalRuntimeConfig = {
+      ...globalRuntimeConfig,
+      documentHandlingMode: normalized as DocumentHandlingMode,
+    };
+  }
 
-  console.log(`[BOT] document handling mode set to: ${runtimeConfig.documentHandlingMode}`);
-  return runtimeConfig.documentHandlingMode;
+  console.log(`[BOT] document handling mode set to: ${normalized}${threadId ? ` for thread ${threadId}` : ""}`);
+  return normalized as DocumentHandlingMode;
 }
 
-export function setBotDefinitionFile(definitionFile: string): string {
+export function setBotDefinitionFile(definitionFile: string, threadId?: string): string {
   const normalized = String(definitionFile).trim();
   if (!normalized) {
     throw new Error("Definition file must not be empty.");
   }
 
-  runtimeConfig = {
-    ...runtimeConfig,
-    definitionFile: normalized,
-  };
+  if (threadId) {
+    const threadConfig = threadConfigs.get(threadId) || {};
+    threadConfig.definitionFile = normalized;
+    threadConfigs.set(threadId, threadConfig);
+  } else {
+    globalRuntimeConfig = {
+      ...globalRuntimeConfig,
+      definitionFile: normalized,
+    };
+  }
 
-  return runtimeConfig.definitionFile;
+  return normalized;
+}
+
+export function setEnableContextSearch(enabled: boolean, threadId?: string): boolean {
+  if (threadId) {
+    const threadConfig = threadConfigs.get(threadId) || {};
+    threadConfig.enableContextSearch = enabled;
+    threadConfigs.set(threadId, threadConfig);
+  } else {
+    globalRuntimeConfig = {
+      ...globalRuntimeConfig,
+      enableContextSearch: enabled,
+    };
+  }
+
+  console.log(`[BOT] context search ${enabled ? "enabled" : "disabled"}${threadId ? ` for thread ${threadId}` : ""}`);
+  return enabled;
 }

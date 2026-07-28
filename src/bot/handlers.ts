@@ -57,7 +57,7 @@ export async function handleMessage(
   // Check for /rag command to override document handling mode
   if (userText.trim().toLowerCase().startsWith("/rag")) {
     ragModeOverride = true;
-    setDocumentHandlingMode("rag");
+    setDocumentHandlingMode("rag", threadId);
     // Strip /rag from the beginning and trim whitespace
     userText = userText.replace(/^\/rag\s*/i, "").trim();
     console.log("[COMMAND] /rag - documents will be ingested to RAG backend");
@@ -77,12 +77,12 @@ export async function handleMessage(
     ].join("\n");
   }
 
-  const commandResponse = handleBotRuntimeCommand(userText);
+  const commandResponse = handleBotRuntimeCommand(userText, threadId);
   if (commandResponse) {
     return commandResponse;
   }
 
-  const runtimeConfig = getBotRuntimeConfig();
+  const runtimeConfig = getBotRuntimeConfig(threadId);
   const mode = runtimeConfig.mode;
   const tools = getTools();
   const availableToolNames = new Set<string>(
@@ -106,6 +106,18 @@ export async function handleMessage(
   }
 
   const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
+  
+  // Debug: Log full activity structure for Copilot to understand how files are passed
+  if (context.activity?.channelData?.productContext === 'COPILOT') {
+    console.log("[COPILOT DEBUG] Checking for files in different locations:");
+    console.log("[COPILOT DEBUG] activity.attachments:", context.activity.attachments);
+    console.log("[COPILOT DEBUG] activity.entities:", JSON.stringify(context.activity.entities, null, 2));
+    console.log("[COPILOT DEBUG] activity.value:", context.activity.value);
+    console.log("[COPILOT DEBUG] activity.channelData.references:", context.activity.channelData?.references);
+    console.log("[COPILOT DEBUG] All activity top-level keys:", Object.keys(context.activity));
+    console.log("[COPILOT DEBUG] All channelData keys:", Object.keys(context.activity.channelData || {}));
+  }
+  
   const uploadedDocuments = collectUploadedDocuments(context.activity);
   const connectToken = await resolveProcessConnectToken(context);
 
@@ -125,14 +137,19 @@ export async function handleMessage(
   }
 
   // let retrievedContext: RetrievedChunk[] = [];
-  let retrievedContext = await retrieveDocumentContext(
-    userText,
-    threadId,
-    context.activity.from?.id,
-    agentTag,
-    context,
-    availableToolNames
-  );
+  let retrievedContext: RetrievedChunk[] = [];
+  
+  if (runtimeConfig.enableContextSearch) {
+    retrievedContext = await retrieveDocumentContext(
+      userText,
+      threadId,
+      context.activity.from?.id,
+      agentTag,
+      context,
+      availableToolNames
+    );
+  }
+  
   let groundedUserQuery = appendDocumentContext(userText, retrievedContext);
 
   // If in context mode and have uploaded documents, extract and append their content
@@ -154,9 +171,23 @@ export async function handleMessage(
 
     try {
       let invocationResult: any;
+      let previousMessages: any[] = [];
+
+      // Try to load previous messages from process state
+      try {
+        const previousProcessState = await getProcessDetails(threadId);
+        previousMessages = previousProcessState?.state?.messages ?? [];
+      } catch (err) {
+        // First turn, no previous state yet
+      }
 
       if (resumeValue !== null) {
-        invocationResult = await stepProcess(threadId, { resume: resumeValue });
+        invocationResult = await stepProcess(threadId, { 
+          resume: resumeValue,
+          env: {
+            messages: previousMessages,
+          }
+        });
 
         // If this conversation has no in-memory session yet, start one and retry the step.
         if (!invocationResult) {
@@ -166,12 +197,16 @@ export async function handleMessage(
             debugStepper: mode === "debug",
             definitionFile: runtimeConfig.definitionFile,
             connectToken,
+            env: {
+              messages: [],
+            }
           });
           invocationResult = await stepProcess(threadId, {
             resume: resumeValue,
             env: {
               userQuery: groundedUserQuery,
               definitionFile: runtimeConfig.definitionFile,
+              messages: [],
             },
           });
         }
@@ -180,6 +215,7 @@ export async function handleMessage(
           env: {
             userQuery: groundedUserQuery,
             definitionFile: runtimeConfig.definitionFile,
+            messages: previousMessages,
           },
         });
       } else {
@@ -189,6 +225,9 @@ export async function handleMessage(
           debugStepper: mode === "debug",
           definitionFile: runtimeConfig.definitionFile,
           connectToken,
+          env: {
+            messages: [],
+          }
         });
       }
 
@@ -301,7 +340,8 @@ export async function handleMessage(
         ? new Command({ resume: resumeValue })
         : {
           userQuery: runtimePrompt,
-          processVariables: {}
+          processVariables: {},
+          messages: []
         };
 
       let result = await agentGraph.invoke(input, config);
@@ -361,7 +401,7 @@ export async function handleMessage(
     } finally {
       // Reset document mode if it was overridden by /rag command
       if (ragModeOverride) {
-        setDocumentHandlingMode("context");
+        setDocumentHandlingMode("context", threadId);
         console.log("[CLEANUP] Document mode reset to context");
       }
     }
@@ -497,7 +537,7 @@ function toThumbnailAttachment(title: string, subtitle: string, text: string) {
   };
 }
 
-function handleBotRuntimeCommand(userText: string): string | null {
+function handleBotRuntimeCommand(userText: string, threadId?: string): string | null {
   const text = String(userText ?? "").trim();
   if (!text.startsWith("/bot")) {
     return null;
@@ -520,7 +560,7 @@ function handleBotRuntimeCommand(userText: string): string | null {
   }
 
   if (command === "config") {
-    const current = getBotRuntimeConfig();
+    const current = getBotRuntimeConfig(threadId);
     return [
       `mode: ${current.mode}`,
       `definitionFile: ${current.definitionFile}`,
@@ -535,7 +575,7 @@ function handleBotRuntimeCommand(userText: string): string | null {
     }
 
     try {
-      const updated = setBotRuntimeMode(nextMode);
+      const updated = setBotRuntimeMode(nextMode, threadId);
       return `Bot mode updated to: ${updated}`;
     } catch (err: any) {
       return String(err?.message ?? err);
@@ -549,7 +589,7 @@ function handleBotRuntimeCommand(userText: string): string | null {
     }
 
     try {
-      const updated = setBotDefinitionFile(value);
+      const updated = setBotDefinitionFile(value, threadId);
       return `Bot definition file updated to: ${updated}`;
     } catch (err: any) {
       return String(err?.message ?? err);

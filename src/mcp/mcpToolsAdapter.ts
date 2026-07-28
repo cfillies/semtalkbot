@@ -5,6 +5,47 @@ import { emitRuntimeEvent } from "../runtime/runtimeEvents";
 let toolsCache: any[] = [];
 const toolClientMap = new Map<string, any>();
 
+/**
+ * Convert a JSON Schema to a Zod schema
+ * Handles basic types: string, number, boolean, object, array
+ */
+function jsonSchemaToZod(schema: any): z.ZodType<any> {
+  if (!schema || typeof schema !== "object") {
+    return z.any();
+  }
+
+  const type = schema.type;
+
+  switch (type) {
+    case "string":
+      return z.string().describe(schema.description || "");
+    case "number":
+      return z.number().describe(schema.description || "");
+    case "integer":
+      return z.number().int().describe(schema.description || "");
+    case "boolean":
+      return z.boolean().describe(schema.description || "");
+    case "array":
+      const itemSchema = schema.items ? jsonSchemaToZod(schema.items) : z.any();
+      return z.array(itemSchema).describe(schema.description || "");
+    case "object": {
+      const properties = schema.properties || {};
+      const zodObj: Record<string, z.ZodType<any>> = {};
+      
+      for (const [key, prop] of Object.entries(properties)) {
+        const propSchema = jsonSchemaToZod(prop);
+        const isRequired = schema.required && schema.required.includes(key);
+        zodObj[key] = isRequired ? propSchema : propSchema.optional();
+      }
+      
+      return z.object(zodObj).describe(schema.description || "");
+    }
+    default:
+      return z.any();
+  }
+}
+
+
 export async function buildToolRegistry(clients: any[]) {
 
   const map = new Map<string, any>();
@@ -19,7 +60,18 @@ export async function buildToolRegistry(clients: any[]) {
         continue;
       }
 
-      const schema = z.object({}).passthrough();
+      // Convert MCP input schema to Zod schema
+      let schema: any = z.object({}).passthrough();
+      if (t.inputSchema) {
+        try {
+          schema = jsonSchemaToZod(t.inputSchema);
+          console.log(`[MCP] tool "${t.name}" schema built from inputSchema`);
+        } catch (err) {
+          console.warn(`[MCP] failed to convert inputSchema for ${t.name}, using passthrough`, err);
+        }
+      } else {
+        console.warn(`[MCP] tool "${t.name}" has no inputSchema, using passthrough`);
+      }
 
       const tool = new DynamicStructuredTool({
         name: t.name,

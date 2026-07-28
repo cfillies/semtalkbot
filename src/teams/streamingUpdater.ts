@@ -121,16 +121,18 @@ export async function createStreamingUpdater(
 
     async complete() {
 
-      unsubscribe();
-
-      // Remove the transient status activity when we hand off to a card/interrupt.
       try {
-        if (supportsDeleteActivity && sent?.id) {
-          await context.deleteActivity(sent.id);
+        // Remove the transient status activity when we hand off to a card/interrupt.
+        try {
+          if (supportsDeleteActivity && sent?.id) {
+            await context.deleteActivity(sent.id);
+          }
+        } catch (err) {
+          // Some channels/hosts may not support deletion; ignore and continue.
+          console.warn("[STREAMER] delete status failed", err);
         }
-      } catch (err) {
-        // Some channels/hosts may not support deletion; ignore and continue.
-        console.warn("[STREAMER] delete status failed", err);
+      } finally {
+        unsubscribe();
       }
 
     },
@@ -139,52 +141,54 @@ export async function createStreamingUpdater(
       text: string
     ): Promise<boolean> {
 
-      unsubscribe();
-
-      // Attempt to replace the persistent status with the final text.
       try {
-        if (sent && conversationRef && !fallbackMode) {
-          const activity = buildUpdateActivity(
-            context,
-            sent,
-            text,
-            conversationRef
-          );
+        // Attempt to replace the persistent status with the final text.
+        try {
+          if (sent && conversationRef && !fallbackMode) {
+            const activity = buildUpdateActivity(
+              context,
+              sent,
+              text,
+              conversationRef
+            );
 
-          await context.updateActivity(activity);
+            await context.updateActivity(activity);
+            return true;
+          }
+        } catch (err) {
+          console.warn("[STREAMER] final update failed", err);
+        }
+
+        // Fallback: send the final text as a normal message (may toast).
+        try {
+          const parsed = parseResponseContent(text);
+
+          if (parsed.kind === "adaptive_card") {
+            await context.sendActivity({
+              type: "message",
+              attachments: [
+                {
+                  contentType: "application/vnd.microsoft.card.adaptive",
+                  content: parsed.content,
+                },
+              ],
+            });
+          } else {
+            await context.sendActivity({
+              type: "message",
+              text,
+              textFormat: "markdown",
+            });
+          }
           return true;
+        } catch (err) {
+          console.warn("[STREAMER] final send failed", err);
         }
-      } catch (err) {
-        console.warn("[STREAMER] final update failed", err);
+
+        return false;
+      } finally {
+        unsubscribe();
       }
-
-      // Fallback: send the final text as a normal message (may toast).
-      try {
-        const parsed = parseResponseContent(text);
-
-        if (parsed.kind === "adaptive_card") {
-          await context.sendActivity({
-            type: "message",
-            attachments: [
-              {
-                contentType: "application/vnd.microsoft.card.adaptive",
-                content: parsed.content,
-              },
-            ],
-          });
-        } else {
-          await context.sendActivity({
-            type: "message",
-            text,
-            textFormat: "markdown",
-          });
-        }
-        return true;
-      } catch (err) {
-        console.warn("[STREAMER] final send failed", err);
-      }
-
-      return false;
     }
   };
 }
