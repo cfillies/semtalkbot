@@ -92,15 +92,6 @@ Process execution state is persisted in MongoDB so sessions can survive restarts
 - LangGraph checkpoints use the official `@langchain/langgraph-checkpoint-mongodb` saver.
 - If MongoDB settings are missing, the runtime falls back to in-memory checkpointing.
 
-Optional persistence settings:
-
-- `PROCESS_SESSION_DB` - database for session documents (default: `DATABASE` or `dbname`)
-- `PROCESS_SESSION_COLLECTION` - session collection (default: `processSessions`)
-- `LANGGRAPH_DB` - database for checkpoints (default: `DATABASE` or `dbname`)
-- `LANGGRAPH_CHECKPOINTS_COLLECTION` - checkpoint collection (default: `processCheckpoints`)
-- `LANGGRAPH_CHECKPOINT_WRITES_COLLECTION` - checkpoint write collection (default: `processCheckpointWrites`)
-- `LANGGRAPH_CHECKPOINT_TTL_SECONDS` - optional TTL for checkpoints in seconds
-
 ## Local Development
 
 Prerequisites:

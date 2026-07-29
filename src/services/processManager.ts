@@ -41,16 +41,16 @@ export type ProcessStopRequest = {
 export type OboExchangeResponse =
   | string
   | {
-      connectToken?: string;
-      token?: string;
-      accessToken?: string;
-      ssoToken?: string;
-      ssotoken?: string;
-      teamsToken?: string;
-      data?: unknown;
-      result?: unknown;
-      payload?: unknown;
-    }
+    connectToken?: string;
+    token?: string;
+    accessToken?: string;
+    ssoToken?: string;
+    ssotoken?: string;
+    teamsToken?: string;
+    data?: unknown;
+    result?: unknown;
+    payload?: unknown;
+  }
   | null
   | undefined;
 
@@ -59,9 +59,7 @@ const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
 
 function getProcessManagerBaseUrl() {
   const fromEnv =
-    process.env.PROCESS_MANAGER_URL ??
-    process.env.PROCESS_MANAGER_BASE_URL ??
-    process.env.SERVICE_URL;
+    process.env.PROCESS_MANAGER_URL;
 
   return (fromEnv ?? DEFAULT_PROCESS_MANAGER_URL).replace(/\/+$/, "");
 }
@@ -125,8 +123,7 @@ function toError(err: unknown, method: Method, path: string) {
 
   if (status) {
     return new Error(
-      `[PROCESS API] ${method.toUpperCase()} ${path} failed (${status})${
-        remoteMessage ? `: ${remoteMessage}` : ""
+      `[PROCESS API] ${method.toUpperCase()} ${path} failed (${status})${remoteMessage ? `: ${remoteMessage}` : ""
       }`
     );
   }

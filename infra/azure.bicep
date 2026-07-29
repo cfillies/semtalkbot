@@ -40,7 +40,7 @@ resource webApp 'Microsoft.Web/sites@2021-02-01' = {
     serverFarmId: serverfarm.id
     httpsOnly: true
     siteConfig: {
-      alwaysOn: true
+      alwaysOn: false
       appSettings: [
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'

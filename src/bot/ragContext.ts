@@ -115,7 +115,7 @@ export async function ingestUploadedDocuments(
     return;
   }
 
-  const runtimeConfig = getBotRuntimeConfig();
+  const runtimeConfig = getBotRuntimeConfig(conversationId);
   const documentMode = runtimeConfig.documentHandlingMode;
 
   console.log(`[DOCS] processing ${documents.length} document(s) in "${documentMode}" mode`);

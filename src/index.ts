@@ -21,10 +21,30 @@ async function main() {
 
   const mafApp = new MAFAgentApplicationBuilder().build();
 
-  mafApp.onActivity("message", botHandler);
-  mafApp.onActivity("invoke", botHandler);
+  console.log("[STARTUP] Registering message activity handler");
+  mafApp.onActivity("message", async (ctx) => {
+    console.log("[ACTIVITY] Message activity received from:", ctx?.activity?.from?.name, "text:", ctx?.activity?.text?.substring(0, 50));
+    try {
+      return await botHandler(ctx);
+    } catch (err) {
+      console.error("[ACTIVITY] Handler threw exception:", err instanceof Error ? err.message : String(err));
+      throw err;
+    }
+  });
+
+  console.log("[STARTUP] Registering invoke activity handler");
+  mafApp.onActivity("invoke", async (ctx) => {
+    console.log("[ACTIVITY] Invoke activity received, name:", ctx?.activity?.name);
+    try {
+      return await botHandler(ctx);
+    } catch (err) {
+      console.error("[ACTIVITY] Handler threw exception:", err instanceof Error ? err.message : String(err));
+      throw err;
+    }
+  });
 
   mafApp.onConversationUpdate("membersAdded", async (ctx) => {
+    console.log("[STARTUP] Member added");
     await ctx.sendActivity("Hello");
   });
 
@@ -36,6 +56,22 @@ async function main() {
   const server = startServer(mafApp);
 
   const allowedOrigins = parseAllowedOrigins();
+  
+  // Log ALL incoming requests
+  server.use((req, res, next) => {
+    console.log("[EXPRESS] Incoming request:", {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      headers: {
+        authorization: req.headers.authorization ? "***" : "MISSING",
+        contentType: req.headers['content-type'],
+        userAgent: req.headers['user-agent']?.substring(0, 50)
+      }
+    });
+    next();
+  });
+  
   server.use((req, res, next) => {
     const originHeader = req.headers.origin;
     const origin = Array.isArray(originHeader)

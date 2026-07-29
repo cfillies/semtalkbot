@@ -123,14 +123,19 @@ export async function handleMessage(
 
   if (runtimeConfig.documentHandlingMode === "rag" && uploadedDocuments.length > 0) {
     console.log(`[MESSAGE] Processing ${uploadedDocuments.length} uploaded document(s) in RAG mode - sending to backend`);
-    await ingestUploadedDocuments(
-      uploadedDocuments,
-      threadId,
-      context.activity.from?.id,
-      agentTag,
-      context,
-      availableToolNames
-    );
+    try {
+      await ingestUploadedDocuments(
+        uploadedDocuments,
+        threadId,
+        context.activity.from?.id,
+        agentTag,
+        context,
+        availableToolNames
+      );
+    } catch (err) {
+      console.error("[MESSAGE] Failed to ingest documents to RAG backend:", err);
+      // Continue with message processing even if document ingestion fails
+    }
     // return;
   } else if (context.activity.attachments?.length > 0) {
     console.log(`[MESSAGE] Activity has ${context.activity.attachments.length} attachment(s) but none were collected. Attachment structure:`, JSON.stringify(context.activity.attachments, null, 2));
@@ -140,14 +145,19 @@ export async function handleMessage(
   let retrievedContext: RetrievedChunk[] = [];
   
   if (runtimeConfig.enableContextSearch) {
-    retrievedContext = await retrieveDocumentContext(
-      userText,
-      threadId,
-      context.activity.from?.id,
-      agentTag,
-      context,
-      availableToolNames
-    );
+    try {
+      retrievedContext = await retrieveDocumentContext(
+        userText,
+        threadId,
+        context.activity.from?.id,
+        agentTag,
+        context,
+        availableToolNames
+      );
+    } catch (err) {
+      console.error("[MESSAGE] Failed to retrieve document context:", err);
+      // Continue without context if retrieval fails
+    }
   }
   
   let groundedUserQuery = appendDocumentContext(userText, retrievedContext);
@@ -155,9 +165,14 @@ export async function handleMessage(
   // If in context mode and have uploaded documents, extract and append their content
   if (runtimeConfig.documentHandlingMode === "context" && uploadedDocuments.length > 0) {
     console.log("[MESSAGE] Extracting document content for context mode");
-    const documentContent = await extractDocumentsForContext(uploadedDocuments);
-    if (documentContent) {
-      groundedUserQuery += documentContent;
+    try {
+      const documentContent = await extractDocumentsForContext(uploadedDocuments);
+      if (documentContent) {
+        groundedUserQuery += documentContent;
+      }
+    } catch (err) {
+      console.error("[MESSAGE] Failed to extract document content for context:", err);
+      // Continue with the message even if document extraction fails
     }
   }
 
@@ -768,8 +783,7 @@ async function resolveProcessConnectToken(context: any): Promise<string | undefi
 
 function isProcessManagerGraphCallsEnabled(): boolean {
   return parseBooleanEnv(
-    process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS ??
-    process.env.PROCESS_MANAGER_USE_GRAPH_CALLS
+    process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS
   );
 }
 

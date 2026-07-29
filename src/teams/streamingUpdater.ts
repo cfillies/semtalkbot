@@ -68,18 +68,26 @@ export async function createStreamingUpdater(
   // and prevents toast notifications for intermediate updates.
 
   // Send an initial persistent status message that we will update.
+
+  const isCopilot = context?.activity?.channelData?.productContext === 'COPILOT';
+
   let sent: any = null;
-  try {
-    sent = await context.sendActivity("🧠 Working...");
-  } catch (err) {
-    console.warn("[STREAM] send initial status failed", err);
+  if (!isCopilot) {
     try {
-      await context.sendActivity({ type: "typing" });
-    } catch (e) {
-      console.warn("[STREAM] send typing failed", e);
+      console.log("[STREAM] attempting to send initial status message");
+      sent = await context.sendActivity("🧠 Working...");
+      console.log("[STREAM] initial status sent:", sent?.id);
+    } catch (err) {
+      console.error("[STREAM] send initial status FAILED:", err);
+      try {
+        console.log("[STREAM] attempting fallback typing indicator");
+        await context.sendActivity({ type: "typing" });
+        console.log("[STREAM] typing indicator sent");
+      } catch (e) {
+        console.error("[STREAM] send typing FAILED:", e);
+      }
     }
   }
-
   const conversationRef =
     typeof context.activity?.getConversationReference === "function"
       ? context.activity.getConversationReference()
@@ -92,6 +100,7 @@ export async function createStreamingUpdater(
 
   const unsubscribe =
     subscribeRuntimeEvents(async (event: any) => {
+      if (isCopilot) return;
       latestText = `⚡ ${event.message}`;
       // Try to update the persistent activity in-place.
       try {
@@ -141,30 +150,55 @@ export async function createStreamingUpdater(
       text: string
     ): Promise<boolean> {
 
+
+      console.log("[STREAMER] final() called with text length:", text?.length ?? 0);
+
       try {
         // Attempt to replace the persistent status with the final text.
         try {
           if (sent && conversationRef && !fallbackMode) {
+            console.log("[STREAMER] attempting to update persistent activity, sent.id:", sent?.id);
             const activity = buildUpdateActivity(
               context,
               sent,
               text,
               conversationRef
             );
-
+            // if (isCopilot) {
+            //   await context.sendActivity(text);
+            //   return true;
+            // }
+            console.log("[STREAMER] calling updateActivity with:", {
+              activityId: activity?.id,
+              type: activity?.type,
+              hasText: !!activity?.text,
+              hasAttachments: !!activity?.attachments
+            });
             await context.updateActivity(activity);
+            console.log("[STREAMER] persistent activity update successful");
             return true;
+          } else {
+            if (!isCopilot) {
+              console.log("[STREAMER] cannot update persistent - sent:", !!sent, "conversationRef:", !!conversationRef, "fallbackMode:", fallbackMode);
+            }
           }
         } catch (err) {
-          console.warn("[STREAMER] final update failed", err);
+          console.warn("[STREAMER] final update failed:", {
+            message: err instanceof Error ? err.message : String(err),
+            hasContext: !!context,
+            contextType: typeof context,
+            sent: sent ? { id: sent.id } : null
+          });
         }
 
         // Fallback: send the final text as a normal message (may toast).
+        console.log("[STREAMER] using fallback send");
         try {
           const parsed = parseResponseContent(text);
 
           if (parsed.kind === "adaptive_card") {
-            await context.sendActivity({
+            console.log("[STREAMER] sending adaptive card, size:", JSON.stringify(parsed.content).length);
+            const activity = {
               type: "message",
               attachments: [
                 {
@@ -172,17 +206,30 @@ export async function createStreamingUpdater(
                   content: parsed.content,
                 },
               ],
-            });
+            };
+            console.log("[STREAMER] calling sendActivity for adaptive card");
+            const result = await context.sendActivity(activity);
+            console.log("[STREAMER] adaptive card sent, result:", result?.id ? `✓ ${result.id}` : "no result id");
           } else {
-            await context.sendActivity({
+            console.log("[STREAMER] sending text message, text length:", text?.length);
+            const activity = {
               type: "message",
               text,
               textFormat: "markdown",
-            });
+            };
+            console.log("[STREAMER] calling sendActivity for text");
+            const result = await context.sendActivity(activity);
+            console.log("[STREAMER] text message sent, result:", result?.id ? `✓ ${result.id}` : "no result id");
           }
+          console.log("[STREAMER] fallback send successful");
           return true;
         } catch (err) {
-          console.warn("[STREAMER] final send failed", err);
+          console.error("[STREAMER] final send FAILED:", {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack?.split('\n')[0] : undefined,
+            contextKeys: context ? Object.keys(context).slice(0, 5) : "no context",
+            contextHasSendActivity: typeof context?.sendActivity === "function"
+          });
         }
 
         return false;
