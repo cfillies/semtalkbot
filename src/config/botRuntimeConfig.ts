@@ -10,7 +10,7 @@ export type BotRuntimeConfig = {
 
 const DEFAULT_DEFINITION_FILE = "langgraph.json";
 const DEFAULT_DOCUMENT_HANDLING_MODE: DocumentHandlingMode = "context";
-const DEFAULT_ENABLE_CONTEXT_SEARCH = true;
+const DEFAULT_ENABLE_CONTEXT_SEARCH = false;
 
 const SUPPORTED_MODES: BotRuntimeMode[] = ["default", "json", "debug"];
 const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];
@@ -43,7 +43,6 @@ function readModeFromEnv(): BotRuntimeMode {
 
 function readDocumentHandlingModeFromEnv(): DocumentHandlingMode {
   const raw =
-    process.env.BOT_DOCUMENT_MODE ??
     process.env.DOCUMENT_HANDLING_MODE ??
     DEFAULT_DOCUMENT_HANDLING_MODE;
 
@@ -58,8 +57,6 @@ function readDocumentHandlingModeFromEnv(): DocumentHandlingMode {
 
 function readDefinitionFileFromEnv(): string {
   const raw =
-    process.env.BOT_BPMN_MODEL ??
-    process.env.BOT_PROCESS_DEFINITION_FILE ??
     process.env.PROCESS_DEFINITION_FILE ??
     DEFAULT_DEFINITION_FILE;
 

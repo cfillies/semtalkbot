@@ -9,7 +9,7 @@
       "value": "${{SECRET_OPENAI_API_KEY}}"
     },
     "webAppSKU": {
-      "value": "F1"
+      "value": "B1"
     },
     "botDisplayName": {
       "value": "SemTalk Process Model Agent"
