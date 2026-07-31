@@ -14,7 +14,7 @@ This file documents the environment setup needed for deployment. Keep this in gi
 - **M365 Tenant ID:** `b4003761-08c8-4847-91b4-47bc01e6031c` (onmicrosoft.com org)
 - **Teams App ID:** `39776ca2-579b-4d04-9c79-70a147e17d72`
 - **Bot ID:** `57866b10-4540-4432-ab01-8ffc4f1c94ad`
-- **Bot Domain:** `bot73f1aa.azurewebsites.net`
+- **Bot Domain:** `44e7fd.azurewebsites.net`
 
 ### Secrets Required in `.env.dev` (gitignored - ask your team)
 ```

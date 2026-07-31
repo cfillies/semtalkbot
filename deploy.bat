@@ -37,7 +37,7 @@ if not exist app.zip (
 echo Deploying to Azure App Service...
 call az webapp deployment source config-zip ^
     --resource-group Default-Storage-WestEurope ^
-    --name bot73f1aa ^
+    --name 44e7fd ^
     --src app.zip
 
 if errorlevel 1 (
@@ -47,4 +47,4 @@ if errorlevel 1 (
 
 echo Deployment successful!
 del app.zip
-echo App should be online at: https://bot73f1aa.azurewebsites.net
+echo App should be online at: https://44e7fd.azurewebsites.net
