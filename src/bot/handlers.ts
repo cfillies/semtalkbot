@@ -26,6 +26,7 @@ import {
   getBotRuntimeConfig,
   getSupportedBotModes,
   setBotDefinitionFile,
+  setBotModelName,
   setBotRuntimeMode,
   setDocumentHandlingMode,
 } from "../config/botRuntimeConfig";
@@ -33,6 +34,8 @@ import {
 // -----------------------------------------------------
 // Main Bot Message Handler
 // -----------------------------------------------------
+let globalEnv: any = {};
+let globalMsg: any = [];
 
 export async function handleMessage(
   langchainreactagent: any,
@@ -84,6 +87,8 @@ export async function handleMessage(
 
   const runtimeConfig = getBotRuntimeConfig(threadId);
   const mode = runtimeConfig.mode;
+  const definitionFile = runtimeConfig.definitionFile;
+  const modelName = runtimeConfig.modelName
   const tools = getTools();
   const availableToolNames = new Set<string>(
     tools
@@ -106,7 +111,7 @@ export async function handleMessage(
   }
 
   const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
-  
+
   // Debug: Log full activity structure for Copilot to understand how files are passed
   if (context.activity?.channelData?.productContext === 'COPILOT') {
     console.log("[COPILOT DEBUG] Checking for files in different locations:");
@@ -117,7 +122,7 @@ export async function handleMessage(
     console.log("[COPILOT DEBUG] All activity top-level keys:", Object.keys(context.activity));
     console.log("[COPILOT DEBUG] All channelData keys:", Object.keys(context.activity.channelData || {}));
   }
-  
+
   const uploadedDocuments = collectUploadedDocuments(context.activity);
   const connectToken = await resolveProcessConnectToken(context);
 
@@ -143,7 +148,7 @@ export async function handleMessage(
 
   // let retrievedContext: RetrievedChunk[] = [];
   let retrievedContext: RetrievedChunk[] = [];
-  
+
   if (runtimeConfig.enableContextSearch) {
     try {
       retrievedContext = await retrieveDocumentContext(
@@ -159,7 +164,7 @@ export async function handleMessage(
       // Continue without context if retrieval fails
     }
   }
-  
+
   let groundedUserQuery = appendDocumentContext(userText, retrievedContext);
 
   // If in context mode and have uploaded documents, extract and append their content
@@ -187,62 +192,72 @@ export async function handleMessage(
     try {
       let invocationResult: any;
       let previousMessages: any[] = [];
+      let previousEnv: any = {};
 
       // Try to load previous messages from process state
       try {
-        const previousProcessState = await getProcessDetails(threadId);
-        previousMessages = previousProcessState?.state?.messages ?? [];
+        // const previousProcessState = await getProcessDetails(threadId);
+        previousMessages = globalMsg[threadId] ?? [];
+        previousEnv = globalEnv[threadId] ?? {};
       } catch (err) {
         // First turn, no previous state yet
       }
 
-      if (resumeValue !== null) {
-        invocationResult = await stepProcess(threadId, { 
+      if (resumeValue !== null && await getProcessSession(threadId)) {
+        // Check if there's actually a pending interrupt waiting for this response
+        const sessionDetails = await getProcessDetails(threadId);
+        // const hasInterrupt = hasPendingUserInterrupt(sessionDetails?.state);
+
+        // if (!hasInterrupt) {
+        // Only call stepProcess if there's a pending interrupt
+        invocationResult = await stepProcess(threadId, {
           resume: resumeValue,
-          env: {
-            messages: previousMessages,
-          }
+          messages: previousMessages,
+          env: {}
         });
 
-        // If this conversation has no in-memory session yet, start one and retry the step.
+        // If stepProcess fails, retry with start
         if (!invocationResult) {
           await startProcess({
             sessionId: threadId,
             userQuery: groundedUserQuery,
             debugStepper: mode === "debug",
-            definitionFile: runtimeConfig.definitionFile,
+            definitionFile: definitionFile,
+            modelName: modelName,
             connectToken,
-            env: {
-              messages: [],
-            }
+            messages: previousMessages,
+            env: previousEnv
           });
           invocationResult = await stepProcess(threadId, {
             resume: resumeValue,
-            env: {
-              userQuery: groundedUserQuery,
-              definitionFile: runtimeConfig.definitionFile,
-              messages: [],
-            },
+            userQuery: groundedUserQuery,
+            // definitionFile: definition,
+            messages: previousMessages,
+            env: {},
           });
         }
+        // } else {
+        //   // No pending interrupt - just load current session state
+        //   // The interrupt was already handled internally by Process Manager
+        //   invocationResult = await getProcessDetails(threadId);
+        // }
       } else if (await getProcessSession(threadId)) {
         invocationResult = await stepProcess(threadId, {
-          env: {
-            userQuery: groundedUserQuery,
-            definitionFile: runtimeConfig.definitionFile,
-            messages: previousMessages,
-          },
+          userQuery: groundedUserQuery,
+          // definitionFile: definition,
+          messages: previousMessages,
+          env: previousEnv,
         });
       } else {
         invocationResult = await startProcess({
           sessionId: threadId,
           userQuery: groundedUserQuery,
           debugStepper: mode === "debug",
-          definitionFile: runtimeConfig.definitionFile,
+          // definitionFile: definition,
+          modelName: modelName,
           connectToken,
-          env: {
-            messages: [],
-          }
+          messages: previousMessages,
+          env: previousEnv
         });
       }
 
@@ -290,6 +305,13 @@ export async function handleMessage(
         invocationResult?.result?.finalResponse ??
         "Sorry, I did not receive a response from the agent.";
       content = normalizeFinalContent(content);
+
+      if (invocationResult?.result?.processVariables) {
+        globalEnv[threadId] = invocationResult?.result?.processVariables;
+      }
+      if (invocationResult?.result?.messages) {
+        globalMsg[threadId] = invocationResult?.result?.messages;
+      }
 
       const posted = await streamer.final(content);
       return posted ? null : content;
@@ -611,6 +633,20 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
     }
   }
 
+  if (command === "modelName") {
+    const value = parts.slice(2).join(" ").trim();
+    if (!value) {
+      return "Missing model name. Use: /bot model <modelName>";
+    }
+
+    try {
+      const updated = setBotModelName(value, threadId);
+      return `Bot modelName updated to: ${updated}`;
+    } catch (err: any) {
+      return String(err?.message ?? err);
+    }
+  }
+
   return `Unknown /bot command. Use: /bot help`;
 }
 
@@ -685,7 +721,14 @@ function concatObjectValues(value: any): any {
   if (value === null || value === undefined) {
     return "";
   }
+  try {
+    value = JSON.parse(value)
+    if (Object.values(value).length == 1) {
+      value = Object.values(value)[0];
+    }
+  } catch (_e) {
 
+  }
   if (typeof value !== "object") {
     return String(value);
   }

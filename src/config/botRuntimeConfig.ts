@@ -4,13 +4,15 @@ export type DocumentHandlingMode = "context" | "rag";
 export type BotRuntimeConfig = {
   mode: BotRuntimeMode;
   definitionFile: string;
+  modelName: string;
   documentHandlingMode: DocumentHandlingMode;
   enableContextSearch: boolean;
 };
 
-const DEFAULT_DEFINITION_FILE = "langgraph.json";
+const DEFAULT_DEFINITION_FILE = "XXXlanggraph.json";
 const DEFAULT_DOCUMENT_HANDLING_MODE: DocumentHandlingMode = "context";
 const DEFAULT_ENABLE_CONTEXT_SEARCH = false;
+const DEFAULT_MODEL_NAME =  "marketing";
 
 const SUPPORTED_MODES: BotRuntimeMode[] = ["default", "json", "debug"];
 const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];
@@ -19,6 +21,7 @@ const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];
 let globalRuntimeConfig: BotRuntimeConfig = {
   mode: readModeFromEnv(),
   definitionFile: readDefinitionFileFromEnv(),
+  modelName: readModelNameFromEnv(),
   documentHandlingMode: readDocumentHandlingModeFromEnv(),
   enableContextSearch: readEnableContextSearchFromEnv(),
 };
@@ -63,7 +66,14 @@ function readDefinitionFileFromEnv(): string {
   const normalized = String(raw).trim();
   return normalized || DEFAULT_DEFINITION_FILE;
 }
+function readModelNameFromEnv(): string {
+  const raw =
+    process.env.MODEL_NAME ??
+    DEFAULT_MODEL_NAME;
 
+  const normalized = String(raw).trim();
+  return normalized || DEFAULT_DEFINITION_FILE;
+}
 function readEnableContextSearchFromEnv(): boolean {
   const raw = process.env.BOT_ENABLE_CONTEXT_SEARCH ?? String(DEFAULT_ENABLE_CONTEXT_SEARCH);
   const normalized = String(raw).trim().toLowerCase();
@@ -158,7 +168,25 @@ export function setBotDefinitionFile(definitionFile: string, threadId?: string):
 
   return normalized;
 }
+export function setBotModelName(modelName: string, threadId?: string): string {
+  const normalized = String(modelName).trim();
+  if (!normalized) {
+    throw new Error("modelName must not be empty.");
+  }
 
+  if (threadId) {
+    const threadConfig = threadConfigs.get(threadId) || {};
+    threadConfig.modelName = normalized;
+    threadConfigs.set(threadId, threadConfig);
+  } else {
+    globalRuntimeConfig = {
+      ...globalRuntimeConfig,
+      modelName: normalized,
+    };
+  }
+
+  return normalized;
+}
 export function setEnableContextSearch(enabled: boolean, threadId?: string): boolean {
   if (threadId) {
     const threadConfig = threadConfigs.get(threadId) || {};

@@ -1,3 +1,4 @@
+import { BaseMessage, MessageStructure, MessageToolSet, MessageType } from "@langchain/core/messages";
 import axios, { AxiosError, Method } from "axios";
 
 export type ProcessStatus = "running" | "stopped" | "completed" | "failed";
@@ -18,20 +19,29 @@ export type ProcessStartRequest = {
   definition?: any;
   definitionFile?: string;
   debugStepper?: boolean;
+  inputModerator?: boolean;
+  inputredflags?: string[];
+  outputModerator?: boolean;
+  outputredflags?: string[];
   userQuery?: string;
   sessionId?: string;
   env?: Record<string, any>;
+  messages?: BaseMessage<MessageStructure<MessageToolSet>, MessageType>[]
   database?: string;
   collection?: string;
   diagramId?: string;
   modelName?: string;
   language?: string;
   connectToken?: string;
+   m365AccessToken?: string;
 };
 
 export type ProcessStepRequest = {
   resume?: any;
+  userQuery?: string;
+  messages?: BaseMessage<MessageStructure<MessageToolSet>, MessageType>[]
   env?: Record<string, any>;
+   m365AccessToken?: string;
 };
 
 export type ProcessStopRequest = {
@@ -54,7 +64,8 @@ export type OboExchangeResponse =
   | null
   | undefined;
 
-const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
+// const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
+const DEFAULT_PROCESS_MANAGER_URL = "http://localhost:7073";
 const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
 
 function getProcessManagerBaseUrl() {
@@ -146,7 +157,7 @@ async function requestProcessApi<T>(method: Method, path: string, data?: unknown
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      timeout: Number(process.env.PROCESS_MANAGER_TIMEOUT_MS ?? 15000),
+      // timeout: Number(process.env.PROCESS_MANAGER_TIMEOUT_MS ?? 15000),
     });
 
     return response.data;
