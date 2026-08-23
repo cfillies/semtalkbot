@@ -36,7 +36,7 @@
   },
   {
     "name": "CONNECTION_STRING",
-    "value": "mongodb+srv://semtation:SemTalk3!@cluster2.kkbs7.mongodb.net",
+    "value": "",
     "slotSetting": false
   },
   {
