@@ -1,7 +1,7 @@
 {
-    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.23/MicrosoftTeams.schema.json",
-    "manifestVersion": "1.23",
-    "version": "1.0.2",
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.29",
+    "version": "1.0.9",
     "id": "${{TEAMS_APP_ID}}",
     "developer": {
         "name": "Semtation GmbH",
@@ -13,15 +13,16 @@
         "color": "color.png",
         "outline": "outline.png"
     },
-   "name": {
-        "short": "SemTalk Process Bot",
-        "full": "SemTalk Process Finder Bot"
+    "name": {
+        "short": "SemTalk Process Bot v3",
+        "full": "SemTalk Process Finder Bot v3"
     },
     "description": {
         "short": "Make your business processes accessible via chat",
         "full": "The SemTalk Process Bot helps you find and understand business processes stored in your SemTalk Process Repository directly from Microsoft Teams."
     },
     "accentColor": "#FFFFFF",
+    "supportsChannelFeatures": "tier1",
     "copilotAgents": {
         "customEngineAgents": [
             {
@@ -34,22 +35,23 @@
         {
             "botId": "${{BOT_ID}}",
             "scopes": [
-                "copilot",
                 "personal",
                 "team",
                 "groupChat"
             ],
-            "supportsFiles": false,
+            "supportsFiles": true,
             "isNotificationOnly": false,
+            "supportsTargetedMessages": false,
             "commandLists": [
                 {
                     "scopes": [
-                        "copilot",
-                        "personal"
+                        "personal",
+                        "groupChat"
                     ],
+                    "triggers": ["mention"],
                     "commands": [
                         {
-                            "title": "Find business processes in our repository",
+                            "title": "Find business processes",
                             "description": "Return a list of Process descriptions for a matching a Process name"
                         },
                         {
@@ -61,7 +63,48 @@
             ]
         }
     ],
-    "composeExtensions": [],
+    "composeExtensions": [
+        {
+            "botId": "${{BOT_ID}}",
+            "commands": [
+                {
+                    "id": "findProcess",
+                    "type": "query",
+                    "title": "Find process",
+                    "description": "Search process ideas and insert a card",
+                    "initialRun": true,
+                    "parameters": [
+                        {
+                            "name": "query",
+                            "title": "Search text",
+                            "description": "Enter a process name or topic",
+                            "inputType": "text"
+                        }
+                    ]
+                },
+                {
+                    "id": "botConfig",
+                    "type": "action",
+                    "title": "Insert bot config command",
+                    "description": "Create a card with bot runtime config instructions",
+                    "parameters": [
+                        {
+                            "name": "mode",
+                            "title": "Mode",
+                            "description": "default, json, or debug",
+                            "inputType": "text"
+                        },
+                        {
+                            "name": "definitionFile",
+                            "title": "BPMN Workflow (SemTalk Library)",
+                            "description": "Example: langgraph.json",
+                            "inputType": "text"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
     "configurableTabs": [],
     "staticTabs": [],
     "permissions": [
