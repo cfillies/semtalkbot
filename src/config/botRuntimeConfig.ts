@@ -12,7 +12,7 @@ export type BotRuntimeConfig = {
 const DEFAULT_DEFINITION_FILE = "XXXlanggraph.json";
 const DEFAULT_DOCUMENT_HANDLING_MODE: DocumentHandlingMode = "context";
 const DEFAULT_ENABLE_CONTEXT_SEARCH = false;
-const DEFAULT_MODEL_NAME =  "marketing";
+const DEFAULT_MODEL_NAME =  "kitaanmeldung";
 
 const SUPPORTED_MODES: BotRuntimeMode[] = ["default", "json", "debug"];
 const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];

@@ -21,6 +21,7 @@ import {
   getProcessSession,
   startProcess,
   stepProcess,
+  stopProcess,
 } from "../services/processManager";
 import {
   getBotRuntimeConfig,
@@ -73,6 +74,7 @@ export async function handleMessage(
       "- /bot config",
       "- /bot mode <default|json|debug>",
       "- /bot model <definitionFile>",
+      "- /bot stop",
       "",
       "Document handling commands:",
       "- /rag <message> - Ingest attached documents to RAG backend for this message",
@@ -87,6 +89,7 @@ export async function handleMessage(
 
   const runtimeConfig = getBotRuntimeConfig(threadId);
   const mode = runtimeConfig.mode;
+  const isstop = userText === "/bot stop"
   const definitionFile = runtimeConfig.definitionFile;
   const modelName = runtimeConfig.modelName
   const tools = getTools();
@@ -242,12 +245,16 @@ export async function handleMessage(
         //   invocationResult = await getProcessDetails(threadId);
         // }
       } else if (await getProcessSession(threadId)) {
-        invocationResult = await stepProcess(threadId, {
-          userQuery: groundedUserQuery,
-          // definitionFile: definition,
-          messages: previousMessages,
-          env: previousEnv,
-        });
+        if (isstop) {
+          invocationResult = await stopProcess(threadId);
+        } else {
+          invocationResult = await stepProcess(threadId, {
+            userQuery: groundedUserQuery,
+            // definitionFile: definition,
+            messages: previousMessages,
+            env: previousEnv,
+          });
+        }
       } else {
         invocationResult = await startProcess({
           sessionId: threadId,
@@ -579,7 +586,9 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
   if (!text.startsWith("/bot")) {
     return null;
   }
-
+  if (!text.startsWith("/bot stop")) {
+    return null;
+  }
   const parts = text.split(/\s+/).filter(Boolean);
   const command = (parts[1] ?? "help").toLowerCase();
 
@@ -589,6 +598,7 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
       "- /bot config",
       "- /bot mode <default|json|debug>",
       "- /bot model <definitionFile>",
+      "- /bot stop",
       "",
       "Document handling commands:",
       "- /rag <message> - Ingest attached documents to RAG backend for this message",
