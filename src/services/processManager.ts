@@ -64,8 +64,8 @@ export type OboExchangeResponse =
   | null
   | undefined;
 
-// const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
-const DEFAULT_PROCESS_MANAGER_URL = "http://localhost:7073";
+const DEFAULT_PROCESS_MANAGER_URL = "https://semaiservice26.azurewebsites.net";
+// const DEFAULT_PROCESS_MANAGER_URL = "http://localhost:7073";
 const DEFAULT_PROCESS_MANAGER_API_PREFIX = "/api";
 
 function getProcessManagerBaseUrl() {

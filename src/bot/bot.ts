@@ -31,10 +31,10 @@ export async function createMAFBot(startupMode?: string) {
 
   return async (context: any) => {
 
-    console.log("[BOT-HANDLER] ENTRY - activity type:", context?.activity?.type);
-    console.log("[BOT-HANDLER] User:", context?.activity?.from?.name, "ID:", context?.activity?.from?.id);
-    console.log("[BOT-HANDLER] Text:", context?.activity?.text);
-    console.log("[BOT-HANDLER] Context valid:", !!context, "sendActivity exists:", typeof context?.sendActivity === "function");
+    // console.log("[BOT-HANDLER] ENTRY - activity type:", context?.activity?.type);
+    // console.log("[BOT-HANDLER] User:", context?.activity?.from?.name, "ID:", context?.activity?.from?.id);
+    // console.log("[BOT-HANDLER] Text:", context?.activity?.text);
+    // console.log("[BOT-HANDLER] Context valid:", !!context, "sendActivity exists:", typeof context?.sendActivity === "function");
     
     let content: any = null;
 

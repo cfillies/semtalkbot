@@ -171,7 +171,7 @@ export function setBotDefinitionFile(definitionFile: string, threadId?: string):
 export function setBotModelName(modelName: string, threadId?: string): string {
   const normalized = String(modelName).trim();
   if (!normalized) {
-    throw new Error("modelName must not be empty.");
+    throw new Error("modelname must not be empty.");
   }
 
   if (threadId) {

@@ -73,6 +73,27 @@
             "internalConsoleOptions": "neverOpen"
         },
         {
+            "name": "Debug Bot (Local)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--inspect-brk=9239",
+                "-r",
+                "ts-node/register"
+            ],
+            "args": [
+                "${workspaceFolder}/src/index.ts"
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.localConfigs.playground",
+            "sourceMaps": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
             "name": "Launch Remote in Teams (Desktop)",
             "type": "node",
             "request": "launch",
@@ -218,9 +239,10 @@
         {
             "name": "Debug in Microsoft 365 Agents Playground",
             "configurations": [
+                "Debug Bot (Local)",
                 "Attach to Local Service"
             ],
-            "preLaunchTask": "Start App in Microsoft 365 Agents Playground",
+            "preLaunchTask": "Start Microsoft 365 Agents Playground",
             "presentation": {
                 "group": "1-local",
                 "order": 1

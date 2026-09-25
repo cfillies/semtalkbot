@@ -6,7 +6,7 @@ import { AgentApplicationBuilder as MAFAgentApplicationBuilder } from "@microsof
 
 async function main() {
   // 4. BOT WRAPPER
-  const botHandler = await createMAFBot("json");
+  const botHandler = await createMAFBot("default");
 
   const mafApp = new MAFAgentApplicationBuilder().build();
 

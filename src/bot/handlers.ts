@@ -74,6 +74,7 @@ export async function handleMessage(
       "- /bot config",
       "- /bot mode <default|json|debug>",
       "- /bot model <definitionFile>",
+      "- /bot modelname <modelname>",
       "- /bot stop",
       "",
       "Document handling commands:",
@@ -586,7 +587,7 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
   if (!text.startsWith("/bot")) {
     return null;
   }
-  if (!text.startsWith("/bot stop")) {
+  if (text.startsWith("/bot stop")) {
     return null;
   }
   const parts = text.split(/\s+/).filter(Boolean);
@@ -597,6 +598,7 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
       "Bot runtime commands:",
       "- /bot config",
       "- /bot mode <default|json|debug>",
+      "- /bot modelname <modelname>",
       "- /bot model <definitionFile>",
       "- /bot stop",
       "",
@@ -643,15 +645,15 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
     }
   }
 
-  if (command === "modelName") {
+  if (command === "modelname") {
     const value = parts.slice(2).join(" ").trim();
     if (!value) {
-      return "Missing model name. Use: /bot model <modelName>";
+      return "Missing model name. Use: /bot modelname <modelname>";
     }
 
     try {
       const updated = setBotModelName(value, threadId);
-      return `Bot modelName updated to: ${updated}`;
+      return `Bot modelname updated to: ${updated}`;
     } catch (err: any) {
       return String(err?.message ?? err);
     }
