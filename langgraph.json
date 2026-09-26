@@ -1,0 +1,462 @@
+{
+    "ID": "9a167ece-5eb7-9b4a-a3c3-f9c8ba449266",
+    "diagram": "langgraph",
+    "model": "langgraph.sdx",
+    "bpmn": {
+        "processes": [
+            {
+                "id": "9a167ece-5eb7-9b4a-a3c3-f9c8ba449266",
+                "name": "langgraph",
+                "lanes": [
+                    {
+                        "id": "0feec5a5-b5a3-dc27-a837-b036633e496d",
+                        "name": "Orchestrator",
+                        "type": "HumanResource",
+                        "attributes": {
+                            "systemPrompt": "You are the orchestrator lane agent for intake and routing.",
+                            "model": "",
+                            "toolNames": ""
+                        },
+                        "elements": [
+                            "0a4ec10e-ae9e-2c6b-ac91-335c43f68206"
+                        ]
+                    },
+                    {
+                        "id": "7a851c78-f2f9-f909-33e9-dd6fa3ecc482",
+                        "name": "laneSet1",
+                        "type": "HumanResource",
+                        "attributes": {},
+                        "elements": []
+                    },
+                    {
+                        "id": "6a35f9a1-b63c-4a32-9634-dae76da1def1",
+                        "name": "Billing",
+                        "type": "HumanResource",
+                        "attributes": {
+                            "systemPrompt": "You are the billing lane agent."
+                        },
+                        "elements": [
+                            "f4c0b255-1642-f67c-170d-a36b0b4b4709"
+                        ]
+                    },
+                    {
+                        "id": "5f462fb4-3f0d-4bbb-8ae1-a0b028c1e68b",
+                        "name": "Support",
+                        "type": "HumanResource",
+                        "attributes": {
+                            "systemPrompt": "You are the support lane agent."
+                        },
+                        "elements": [
+                            "7bf04576-740f-bb69-2869-47e43d05dfbf"
+                        ]
+                    }
+                ],
+                "elements": [
+                    {
+                        "id": "e72fe966-229a-f85a-3bbe-fe38f4590bc6",
+                        "name": "start1",
+                        "attributes": {
+                            "EventType": "Start"
+                        },
+                        "type": "startEvent"
+                    },
+                    {
+                        "id": "0a4ec10e-ae9e-2c6b-ac91-335c43f68206",
+                        "name": "Collect User Input",
+                        "attributes": {
+                            "UserNumber": "1",
+                            "promptTemplate": "Collect the user's request in plain text.",
+                            "systemPrompt": "",
+                            "AssignmentExpression_1": "[{\"var\":\"Request\",\"op\":\"assignment\",\"val\":\"userQuery\"}]"
+                        },
+                        "type": "task",
+                        "tasktype": "User",
+                        "outputs": [
+                            "Request"
+                        ],
+                        "inputs": [
+                            "userQuery"
+                        ]
+                    },
+                    {
+                        "id": "f4c0b255-1642-f67c-170d-a36b0b4b4709",
+                        "name": "Generate billing instructions for the user.",
+                        "attributes": {
+                            "UserNumber": "2",
+                            "systemPrompt": "",
+                            "promptTemplate": "Generate billing instructions for the user.",
+                            "WorkTime": 1,
+                            "WaitingTime": 0
+                        },
+                        "type": "task",
+                        "tasktype": "None",
+                        "outputs": [
+                            "Billing Instructions"
+                        ],
+                        "inputs": [
+                            "Request"
+                        ]
+                    },
+                    {
+                        "id": "ed8bbe22-5e55-15c0-2699-f237f98805e6",
+                        "name": "Gateway",
+                        "type": "exclusiveGateway"
+                    },
+                    {
+                        "id": "7bf04576-740f-bb69-2869-47e43d05dfbf",
+                        "name": "Handle Support",
+                        "attributes": {
+                            "UserNumber": "3",
+                            "systemPrompt": "",
+                            "promptTemplate": "Provide support instructions for the user."
+                        },
+                        "type": "task",
+                        "tasktype": "None",
+                        "outputs": [
+                            "Support Instructions"
+                        ],
+                        "inputs": [
+                            "Request"
+                        ]
+                    },
+                    {
+                        "id": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6",
+                        "name": "end1",
+                        "attributes": {
+                            "EventType": "End"
+                        },
+                        "type": "endEvent"
+                    },
+                    {
+                        "id": "4c4d39b2-2e2f-893d-e979-b5cd37380263",
+                        "name": "Request",
+                        "type": "dataObject"
+                    },
+                    {
+                        "id": "b7a60d5a-76a2-4eaf-373a-8d42a84ea53f",
+                        "name": "Request",
+                        "type": "dataObject"
+                    },
+                    {
+                        "id": "0b1405ff-d5f4-f1da-4370-257184cfccb3",
+                        "name": "Billing Instructions",
+                        "type": "dataObject"
+                    },
+                    {
+                        "id": "8e7786c9-9bfb-dada-a4b2-b24e4309177a",
+                        "name": "Request",
+                        "type": "dataObject"
+                    },
+                    {
+                        "id": "2e2fe4a2-7828-2cd8-6907-87ce8fc76762",
+                        "name": "Support Instructions",
+                        "type": "dataObject"
+                    },
+                    {
+                        "id": "84ac36d7-0de3-72de-5faf-f37ceecf3a72",
+                        "name": "userQuery",
+                        "type": "dataObject"
+                    }
+                ],
+                "flows": [
+                    {
+                        "id": "4a923255-7632-5db8-55bf-16c010fe72f1",
+                        "sourceRef": "e72fe966-229a-f85a-3bbe-fe38f4590bc6",
+                        "targetRef": "0a4ec10e-ae9e-2c6b-ac91-335c43f68206"
+                    },
+                    {
+                        "id": "f4eaf670-627d-6394-8708-686efde39ee1",
+                        "sourceRef": "0a4ec10e-ae9e-2c6b-ac91-335c43f68206",
+                        "targetRef": "ed8bbe22-5e55-15c0-2699-f237f98805e6"
+                    },
+                    {
+                        "id": "ec6729b0-1dc5-5b86-c946-274a75aa71bb",
+                        "sourceRef": "f4c0b255-1642-f67c-170d-a36b0b4b4709",
+                        "targetRef": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6"
+                    },
+                    {
+                        "id": "1d6260a3-d91e-1e2c-b872-26b3ab2dba14",
+                        "sourceRef": "ed8bbe22-5e55-15c0-2699-f237f98805e6",
+                        "targetRef": "f4c0b255-1642-f67c-170d-a36b0b4b4709",
+                        "condition": "[{\"var\":\"Request\",\"op\":\"contains\",\"val\":\"Billing\"}]",
+                        "attributes": {
+                            "ConditionExpression": "[{\"var\":\"Request\",\"op\":\"contains\",\"val\":\"Billing\"}]"
+                        }
+                    },
+                    {
+                        "id": "73ea174b-8b7c-4863-1229-68035ce8cfa1",
+                        "sourceRef": "ed8bbe22-5e55-15c0-2699-f237f98805e6",
+                        "targetRef": "7bf04576-740f-bb69-2869-47e43d05dfbf",
+                        "condition": "[{\"var\":\"Request\",\"op\":\"contains\",\"val\":\"Support\"}]",
+                        "attributes": {
+                            "ConditionExpression": "[{\"var\":\"Request\",\"op\":\"contains\",\"val\":\"Support\"}]",
+                            "WorkTime": 1
+                        }
+                    },
+                    {
+                        "id": "ca15343a-d7ed-9be2-c473-bc749c0c95c3",
+                        "sourceRef": "7bf04576-740f-bb69-2869-47e43d05dfbf",
+                        "targetRef": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6"
+                    }
+                ],
+                "dataobjects": [
+                    "Request",
+                    "userQuery",
+                    "Billing Instructions",
+                    "Support Instructions"
+                ],
+                "layout": [
+                    {
+                        "id": "1806be69-9b28-e3f5-5e9e-ec4e8d265198",
+                        "elementid": "5d8a149c-0614-9359-af73-8f94b0fef3d1",
+                        "style": "swimlane;",
+                        "bounds": {
+                            "x": "30",
+                            "width": "1116",
+                            "height": "210"
+                        }
+                    },
+                    {
+                        "id": "3b2a3a5f-9772-6cc6-0dc0-b900b22f85dc",
+                        "elementid": "e72fe966-229a-f85a-3bbe-fe38f4590bc6",
+                        "style": "shape=bpmnevent;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;labelMovable=1;resize=0;strokeWidth=2;labelWidth=80;EventType=Start;TriggerType=None;",
+                        "bounds": {
+                            "x": "70",
+                            "y": "70",
+                            "width": "40",
+                            "height": "40"
+                        }
+                    },
+                    {
+                        "id": "62d401b5-9ab5-530b-48f8-c6d023586057",
+                        "elementid": "09131ca9-3636-4db8-bf3d-52a6a22a5bd6",
+                        "style": "swimlane;",
+                        "bounds": {
+                            "x": "30",
+                            "y": "130",
+                            "width": "1146",
+                            "height": "680"
+                        }
+                    },
+                    {
+                        "id": "5ddfd60f-3631-94c3-8a35-cb622767ce49",
+                        "elementid": "e499ae0e-8d1a-54e5-a361-ec1aff410e6c",
+                        "style": "swimlane;",
+                        "bounds": {
+                            "x": "30",
+                            "y": "210",
+                            "width": "1116",
+                            "height": "200"
+                        }
+                    },
+                    {
+                        "id": "e5b65f83-502a-b8e2-b686-819a9c88b4dd",
+                        "elementid": "62a3a96c-d215-e9a2-db10-c8a8e05a57a7",
+                        "style": "swimlane;",
+                        "bounds": {
+                            "x": "30",
+                            "y": "410",
+                            "width": "1116",
+                            "height": "270"
+                        }
+                    },
+                    {
+                        "id": "b44f9684-9b77-4228-6705-79eba3b5c48f",
+                        "elementid": "0a4ec10e-ae9e-2c6b-ac91-335c43f68206",
+                        "style": "shape=bpmntask;html=1;whiteSpace=wrap;rounded=1;resize=0;strokeWidth=2;TaskType=None;TriggerType=None;",
+                        "bounds": {
+                            "x": "160",
+                            "y": "50",
+                            "width": "100",
+                            "height": "80"
+                        }
+                    },
+                    {
+                        "id": "c9372367-e0da-fee8-feb7-19637c53adac",
+                        "elementid": "f4c0b255-1642-f67c-170d-a36b0b4b4709",
+                        "style": "shape=bpmntask;html=1;whiteSpace=wrap;rounded=1;resize=0;strokeWidth=2;TaskType=None;TriggerType=None;",
+                        "bounds": {
+                            "x": "490",
+                            "y": "20",
+                            "width": "100",
+                            "height": "80"
+                        }
+                    },
+                    {
+                        "id": "21b6c096-87aa-ecc8-f2a5-f8ffbddc0bda",
+                        "elementid": "ed8bbe22-5e55-15c0-2699-f237f98805e6",
+                        "style": "shape=bpmngateway;html=1;whiteSpace=wrap;labelMovable=1;resize=0;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;labelWidth=100;GatewayType=Exclusive Data",
+                        "bounds": {
+                            "x": "350",
+                            "y": "65",
+                            "width": "50",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "cb97b3b4-b684-b59a-43bd-4bb19a6ad590",
+                        "elementid": "7bf04576-740f-bb69-2869-47e43d05dfbf",
+                        "style": "shape=bpmntask;html=1;whiteSpace=wrap;rounded=1;resize=0;strokeWidth=2;TaskType=None;TriggerType=None;",
+                        "bounds": {
+                            "x": "490",
+                            "y": "30",
+                            "width": "100",
+                            "height": "80"
+                        }
+                    },
+                    {
+                        "id": "082a4c83-ad58-2472-599d-eaadc361afb1",
+                        "elementid": "00e4e0ff-d5e5-60ad-31cb-4f824ec263c6",
+                        "style": "shape=bpmnevent;html=1;whiteSpace=wrap;labelMovable=1;verticalLabelPosition=bottom;verticalAlign=top;resize=0;strokeWidth=2;labelWidth=80;EventType=End;TriggerType=None;",
+                        "bounds": {
+                            "x": "930",
+                            "y": "50",
+                            "width": "40",
+                            "height": "40"
+                        }
+                    },
+                    {
+                        "id": "e037d178-0cd9-21d6-5a50-663b930a8f4a",
+                        "elementid": "4c4d39b2-2e2f-893d-e979-b5cd37380263",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "290",
+                            "y": "130",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "ec080901-f787-0aa7-408b-bc526a921043",
+                        "elementid": "b7a60d5a-76a2-4eaf-373a-8d42a84ea53f",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "430",
+                            "y": "100",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "4d3291fd-34b1-36e6-e936-35806e9c8371",
+                        "elementid": "0b1405ff-d5f4-f1da-4370-257184cfccb3",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "610",
+                            "y": "110",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "ffcf7646-8a05-119b-c8e4-211a454a153d",
+                        "elementid": "8e7786c9-9bfb-dada-a4b2-b24e4309177a",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "420",
+                            "y": "120",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "0cc91915-6196-04b8-13b4-98196f58202d",
+                        "elementid": "2e2fe4a2-7828-2cd8-6907-87ce8fc76762",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "610",
+                            "y": "120",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    },
+                    {
+                        "id": "5482517b-74ab-da36-bbd6-10817c78b9cf",
+                        "elementid": "84ac36d7-0de3-72de-5faf-f37ceecf3a72",
+                        "style": "shape=bpmndataobject;html=1;whiteSpace=wrap;verticalLabelPosition=bottom;verticalAlign=top;fillColor=lightyellow;resize=0;labelWidth=80;",
+                        "bounds": {
+                            "x": "110",
+                            "y": "140",
+                            "width": "40",
+                            "height": "50"
+                        }
+                    }
+                ],
+                "layout_flows": [
+                    {
+                        "id": "174b826b-e4ce-c4d1-3181-c6fc92fb7736",
+                        "elementid": "4a923255-7632-5db8-55bf-16c010fe72f1",
+                        "style": "strokeWidth=2;shape=flexArrow;edgeStyle=elbowEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "8ab5503a-fa8c-3846-3e34-99015a894797",
+                        "elementid": "f4eaf670-627d-6394-8708-686efde39ee1",
+                        "style": "shape=flexArrow;edgeStyle=elbowEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "eebc6ee3-234d-6575-6938-064487fcba5c",
+                        "elementid": "c8c6ecf6-1f2f-ab36-6435-69d41b2a5d52",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "3438095e-8f1a-5596-f683-aa1979b2b280",
+                        "elementid": "ec6729b0-1dc5-5b86-c946-274a75aa71bb",
+                        "style": "shape=flexArrow;edgeStyle=elbowEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "40c63f40-51bd-d4fb-bf40-02c1aa1e725b",
+                        "elementid": "d348e5cc-c5e9-4791-99f6-87a9c636957f",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "03fdfc22-17f1-3b60-53e1-dcb893a4d254",
+                        "elementid": "1d6260a3-d91e-1e2c-b872-26b3ab2dba14",
+                        "style": "shape=flexArrow;edgeStyle=orthogonalEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;custom=1;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "3b4b9daf-2923-3d0c-4046-729f13573368",
+                        "elementid": "73ea174b-8b7c-4863-1229-68035ce8cfa1",
+                        "style": "shape=flexArrow;edgeStyle=Manhattan;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;custom=1;elbow=vertical;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "e54dc227-5f80-59b2-f1de-13d3b2fcd2f6",
+                        "elementid": "ca15343a-d7ed-9be2-c473-bc749c0c95c3",
+                        "style": "shape=flexArrow;edgeStyle=elbowEdgeStyle;verticalAlign=top;verticalLabelPosition=bottom;rounded=1;endArrow=classic;html=1;fillColor=#ffffff;strokeWidth=2;labelWidth=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "29c06290-f546-b75a-5037-527155fc828c",
+                        "elementid": "b19be1da-996b-bf81-8e47-deda307c20ff",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "0931156f-382b-5556-65e4-a16e511aa80e",
+                        "elementid": "3767053b-2c42-3b58-3193-0d3021f1ff3a",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "7d13e3fa-dc50-109f-3ee1-60d6b2672367",
+                        "elementid": "46dfa2f5-7018-4dc3-bc93-01dea6df8934",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    },
+                    {
+                        "id": "abe87dc3-e5a9-be25-70d9-86b9198f6051",
+                        "elementid": "b571f26b-45a7-77aa-ae26-204d49e8a72b",
+                        "style": "shape=flexArrow;dashed=1;dashPattern=1 1;endArrow=classic;html=1;strokeWidth=2;editable=0;",
+                        "waypoints": []
+                    }
+                ]
+            }
+        ]
+    }
+}

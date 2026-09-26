@@ -2,9 +2,9 @@
 env/.env.*.user
 env/.env.local
 env/.env.sandbox
+env/.env.playground
 .localConfigs
 .localConfigs.playground
-.localConfigs
 .notification.localstore.json
 .notification.playgroundstore.json
 appPackage/build
@@ -23,3 +23,5 @@ lib/
 # Dev tool directories
 /devTools/
 package-lock.json
+__azurite_db_blob__.json
+__azurite_db_blob_extent__.json

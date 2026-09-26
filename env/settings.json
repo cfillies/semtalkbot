@@ -1,0 +1,68 @@
+[
+  {
+    "name": "BOT_MODE",
+    "value": "default",
+    "slotSetting": false
+  },
+  {
+    "name": "BOT_DEFAULT_MODE",
+    "value": "default",
+    "slotSetting": false
+  },
+  {
+    "name": "DOCUMENT_HANDLING_MODE",
+    "value": "context",
+    "slotSetting": false
+  },
+  {
+    "name": "PROCESS_DEFINITION_FILE",
+    "value": "langgraph.json",
+    "slotSetting": false
+  },
+  {
+    "name": "BOT_ENABLE_CONTEXT_SEARCH",
+    "value": "false",
+    "slotSetting": false
+  },
+  {
+    "name": "RAG_AGENT_TAG",
+    "value": "default",
+    "slotSetting": false
+  },
+  {
+    "name": "CORS_ALLOWED_ORIGINS",
+    "value": "*",
+    "slotSetting": false
+  },
+  {
+    "name": "CONNECTION_STRING",
+    "value": "",
+    "slotSetting": false
+  },
+  {
+    "name": "MCP_URL",
+    "value": "https://semaiservice26.azurewebsites.net/runtime/webhooks/mcp?code=m6Uw9BvzgbI0if-2xYp3AGIcOGJuLuRtz9_S3FlljXH3AzFusFhMIQ==",
+    "slotSetting": false
+  },
+  {
+    "name": "PROCESS_MANAGER_URL",
+    "value": "https://semaiservice26.azurewebsites.net",
+    "slotSetting": false
+  },  {
+    "name": "PROCESS_MANAGER_API_PREFIX",
+    "value": "/api",
+    "slotSetting": false
+  },  {
+    "name": "PROCESS_MANAGER_TIMEOUT_MS",
+    "value": "15000",
+    "slotSetting": false
+  },  {
+    "name": "PROCESS_MANAGER_ENABLE_GRAPH_CALLS",
+    "value": "false",
+    "slotSetting": false
+  },{
+    "name": "BACKEND_DOCUMENT_SERVICE_URL",
+    "value": "https://semaiservice26.azurewebsites.net",
+    "slotSetting": false
+  }
+]
