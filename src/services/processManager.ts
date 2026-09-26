@@ -15,25 +15,33 @@ export type ProcessSession = {
 };
 
 export type ProcessStartRequest = {
-  name?: string;
+    name: string;
   definition?: any;
   definitionFile?: string;
-  debugStepper?: boolean;
-  inputModerator?: boolean;
-  inputredflags?: string[];
-  outputModerator?: boolean;
-  outputredflags?: string[];
-  userQuery?: string;
-  sessionId?: string;
-  env?: Record<string, any>;
-  messages?: BaseMessage<MessageStructure<MessageToolSet>, MessageType>[]
+  debugStepper: boolean;
+  recordHistory: boolean;
+  debugBreakpoints: string[];
+  // processTarget: ProcessSelectionTarget;
+  // debugTarget: ProcessDebugTarget;
+  inputModerator: boolean;
+  inputredflags: string[];
+  outputModerator: boolean;
+  outputredflags: string[];
+  userQuery: string;
+  sessionId: string;
+  env: Record<string, any>;
+  messages: BaseMessage<MessageStructure<MessageToolSet>, MessageType>[]
   database?: string;
   collection?: string;
   diagramId?: string;
   modelName?: string;
-  language?: string;
+  language: string;
   connectToken?: string;
-   m365AccessToken?: string;
+  m365AccessToken?: string;
+  keepsession: boolean;
+  ischatmode: boolean;
+  theme: Record<string, any>;
+  disableDataCollection: boolean;
 };
 
 export type ProcessStepRequest = {

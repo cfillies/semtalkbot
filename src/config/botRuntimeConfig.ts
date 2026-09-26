@@ -1,10 +1,14 @@
-export type BotRuntimeMode = "default" | "json" | "debug";
+export enum BotMode  {
+  default = "default",
+  workflow = "workflow",
+  debug = "debug"
+};
 export type DocumentHandlingMode = "context" | "rag";
 
 export type BotRuntimeConfig = {
-  mode: BotRuntimeMode;
-  definitionFile: string;
-  modelName: string;
+  mode: BotMode;
+  // definitionFile: string;
+  workflow: string;
   documentHandlingMode: DocumentHandlingMode;
   enableContextSearch: boolean;
 };
@@ -14,14 +18,14 @@ const DEFAULT_DOCUMENT_HANDLING_MODE: DocumentHandlingMode = "context";
 const DEFAULT_ENABLE_CONTEXT_SEARCH = false;
 const DEFAULT_MODEL_NAME =  "kitaanmeldung";
 
-const SUPPORTED_MODES: BotRuntimeMode[] = ["default", "json", "debug"];
+const SUPPORTED_MODES: BotMode[] = [BotMode.default, BotMode.workflow, BotMode.debug];
 const SUPPORTED_DOCUMENT_MODES: DocumentHandlingMode[] = ["context", "rag"];
 
 // Global default config from environment
 let globalRuntimeConfig: BotRuntimeConfig = {
   mode: readModeFromEnv(),
-  definitionFile: readDefinitionFileFromEnv(),
-  modelName: readModelNameFromEnv(),
+  // definitionFile: readDefinitionFileFromEnv(),
+  workflow: readModelNameFromEnv(),
   documentHandlingMode: readDocumentHandlingModeFromEnv(),
   enableContextSearch: readEnableContextSearchFromEnv(),
 };
@@ -29,7 +33,7 @@ let globalRuntimeConfig: BotRuntimeConfig = {
 // Per-thread/conversation config overrides
 const threadConfigs = new Map<string, Partial<BotRuntimeConfig>>();
 
-function readModeFromEnv(): BotRuntimeMode {
+function readModeFromEnv(): BotMode {
   const raw =
     process.env.BOT_MODE ??
     process.env.BOT_DEFAULT_MODE ??
@@ -37,11 +41,11 @@ function readModeFromEnv(): BotRuntimeMode {
 
   const normalized = String(raw).trim().toLowerCase();
   if ((SUPPORTED_MODES as string[]).includes(normalized)) {
-    return normalized as BotRuntimeMode;
+    return normalized as BotMode;
   }
 
   console.warn(`[BOT] invalid BOT_MODE \"${raw}\"; using \"default\"`);
-  return "default";
+  return BotMode.default;
 }
 
 function readDocumentHandlingModeFromEnv(): DocumentHandlingMode {
@@ -58,14 +62,14 @@ function readDocumentHandlingModeFromEnv(): DocumentHandlingMode {
   return DEFAULT_DOCUMENT_HANDLING_MODE;
 }
 
-function readDefinitionFileFromEnv(): string {
-  const raw =
-    process.env.PROCESS_DEFINITION_FILE ??
-    DEFAULT_DEFINITION_FILE;
+// function readDefinitionFileFromEnv(): string {
+//   const raw =
+//     process.env.PROCESS_DEFINITION_FILE ??
+//     DEFAULT_DEFINITION_FILE;
 
-  const normalized = String(raw).trim();
-  return normalized || DEFAULT_DEFINITION_FILE;
-}
+//   const normalized = String(raw).trim();
+//   return normalized || DEFAULT_DEFINITION_FILE;
+// }
 function readModelNameFromEnv(): string {
   const raw =
     process.env.MODEL_NAME ??
@@ -100,7 +104,7 @@ export function getBotRuntimeConfig(threadId?: string): BotRuntimeConfig {
   return { ...globalRuntimeConfig };
 }
 
-export function setBotRuntimeMode(mode: string, threadId?: string): BotRuntimeMode {
+export function setBotRuntimeMode(mode: string, threadId?: string): BotMode {
   const normalized = String(mode).trim().toLowerCase();
   if (!(SUPPORTED_MODES as string[]).includes(normalized)) {
     throw new Error(
@@ -111,19 +115,19 @@ export function setBotRuntimeMode(mode: string, threadId?: string): BotRuntimeMo
   if (threadId) {
     // Store thread-specific mode
     const threadConfig = threadConfigs.get(threadId) || {};
-    threadConfig.mode = normalized as BotRuntimeMode;
+    threadConfig.mode = normalized as BotMode;
     threadConfigs.set(threadId, threadConfig);
     console.log(`[BOT] mode set to "${normalized}" for thread ${threadId}`);
   } else {
     // Update global config
     globalRuntimeConfig = {
       ...globalRuntimeConfig,
-      mode: normalized as BotRuntimeMode,
+      mode: normalized as BotMode,
     };
     console.log(`[BOT] global mode set to "${normalized}"`);
   }
 
-  return normalized as BotRuntimeMode;
+  return normalized as BotMode;
 }
 
 export function setDocumentHandlingMode(mode: string, threadId?: string): DocumentHandlingMode {
@@ -149,39 +153,39 @@ export function setDocumentHandlingMode(mode: string, threadId?: string): Docume
   return normalized as DocumentHandlingMode;
 }
 
-export function setBotDefinitionFile(definitionFile: string, threadId?: string): string {
-  const normalized = String(definitionFile).trim();
+// export function setBotDefinitionFile(definitionFile: string, threadId?: string): string {
+//   const normalized = String(definitionFile).trim();
+//   if (!normalized) {
+//     throw new Error("Definition file must not be empty.");
+//   }
+
+//   if (threadId) {
+//     const threadConfig = threadConfigs.get(threadId) || {};
+//     threadConfig.definitionFile = normalized;
+//     threadConfigs.set(threadId, threadConfig);
+//   } else {
+//     globalRuntimeConfig = {
+//       ...globalRuntimeConfig,
+//       definitionFile: normalized,
+//     };
+//   }
+
+//   return normalized;
+// }
+export function setBotWorkflow(workflow: string, threadId?: string): string {
+  const normalized = String(workflow).trim();
   if (!normalized) {
-    throw new Error("Definition file must not be empty.");
+    throw new Error("workflow must not be empty.");
   }
 
   if (threadId) {
     const threadConfig = threadConfigs.get(threadId) || {};
-    threadConfig.definitionFile = normalized;
+    threadConfig.workflow = normalized;
     threadConfigs.set(threadId, threadConfig);
   } else {
     globalRuntimeConfig = {
       ...globalRuntimeConfig,
-      definitionFile: normalized,
-    };
-  }
-
-  return normalized;
-}
-export function setBotModelName(modelName: string, threadId?: string): string {
-  const normalized = String(modelName).trim();
-  if (!normalized) {
-    throw new Error("modelname must not be empty.");
-  }
-
-  if (threadId) {
-    const threadConfig = threadConfigs.get(threadId) || {};
-    threadConfig.modelName = normalized;
-    threadConfigs.set(threadId, threadConfig);
-  } else {
-    globalRuntimeConfig = {
-      ...globalRuntimeConfig,
-      modelName: normalized,
+      workflow: normalized,
     };
   }
 

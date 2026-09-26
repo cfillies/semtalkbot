@@ -107,9 +107,7 @@ export async function ingestUploadedDocuments(
   conversationId: string,
   userId?: string,
   agentTag?: string,
-  context?: any,
-  availableToolNames?: Set<string>
-) {
+  context?: any) {
   if (!documents.length) {
     console.log("[DOCS] no documents to ingest");
     return;
@@ -201,9 +199,7 @@ export async function retrieveDocumentContext(
   conversationId: string,
   userId?: string,
   agentTag?: string,
-  context?: any,
-  availableToolNames?: Set<string>
-): Promise<RetrievedChunk[]> {
+  context?: any): Promise<RetrievedChunk[]> {
   if (!query?.trim()) {
     return [];
   }
@@ -232,34 +228,6 @@ export async function retrieveDocumentContext(
       source: chunk.source,
       text: chunk.text,
     }));
-  }
-
-  if (false) {
-
-    // Fallback to MCP tools if backend search returned no results
-    console.log("[DOCS] No results from backend API, falling back to MCP search tools");
-    const ragContext = buildRagContext(conversationId, userId, agentTag, context);
-    const args = buildSearchArguments(query, ragContext);
-    const candidates = pickSupportedTools(SEARCH_TOOL_CANDIDATES, availableToolNames);
-
-    if (!candidates.length) {
-      console.log("[DOCS] No supported MCP search tool found");
-      return [];
-    }
-
-    for (const toolName of candidates) {
-      try {
-        const result = await callMcpTool(toolName, args);
-
-        const chunks = normalizeRetrievedChunks(result);
-        if (chunks.length > 0) {
-          console.log(`[DOCS] Retrieved ${chunks.length} chunks via MCP tool ${toolName}`);
-          return chunks;
-        }
-      } catch (err) {
-        console.debug(`[DOCS] MCP search tool ${toolName} unavailable or failed`, err);
-      }
-    }
   }
   return [];
 }
@@ -308,86 +276,78 @@ export function resolveAgentTag(context: any, mode: string, resolvedUserPrompt: 
   return sanitizeTag(mode || "default-agent");
 }
 
-function pickSupportedTools(candidates: string[], availableToolNames?: Set<string>) {
-  if (!availableToolNames || availableToolNames.size === 0) {
-    return candidates;
-  }
+// function extractTextFromToolResult(result: any) {
+//   const content = Array.isArray(result?.content) ? result.content : [];
+//   const textValues = content
+//     .map((entry: any) => (typeof entry?.text === "string" ? entry.text : ""))
+//     .filter(Boolean);
 
-  return candidates.filter((name) => availableToolNames.has(name));
-}
+//   return textValues.join("\n").trim();
+// }
 
-function extractTextFromToolResult(result: any) {
-  const content = Array.isArray(result?.content) ? result.content : [];
-  const textValues = content
-    .map((entry: any) => (typeof entry?.text === "string" ? entry.text : ""))
-    .filter(Boolean);
+// function normalizeRetrievedChunks(result: any): RetrievedChunk[] {
+//   const textPayload = extractTextFromToolResult(result);
+//   if (!textPayload) {
+//     return [];
+//   }
 
-  return textValues.join("\n").trim();
-}
+//   try {
+//     const parsed = JSON.parse(textPayload);
 
-function normalizeRetrievedChunks(result: any): RetrievedChunk[] {
-  const textPayload = extractTextFromToolResult(result);
-  if (!textPayload) {
-    return [];
-  }
+//     if (Array.isArray(parsed)) {
+//       return parsed
+//         .map((item) => normalizeRetrievedChunk(item))
+//         .filter((item): item is RetrievedChunk => Boolean(item));
+//     }
+//     if (parsed.content) {
+//       const contentArray = Array.isArray(parsed.content) ? parsed.content : [parsed.content];
+//       return contentArray
+//         .map((item: any) => normalizeRetrievedChunk(item))
+//         .filter((item: any): item is RetrievedChunk => Boolean(item));
+//     }
 
-  try {
-    const parsed = JSON.parse(textPayload);
+//     if (Array.isArray(parsed?.chunks)) {
+//       return parsed.chunks
+//         .map((item: any) => normalizeRetrievedChunk(item))
+//         .filter((item: RetrievedChunk | null): item is RetrievedChunk => Boolean(item));
+//     }
 
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => normalizeRetrievedChunk(item))
-        .filter((item): item is RetrievedChunk => Boolean(item));
-    }
-    if (parsed.content) {
-      const contentArray = Array.isArray(parsed.content) ? parsed.content : [parsed.content];
-      return contentArray
-        .map((item: any) => normalizeRetrievedChunk(item))
-        .filter((item: any): item is RetrievedChunk => Boolean(item));
-    }
+//     const one = normalizeRetrievedChunk(parsed);
+//     return one ? [one] : [];
+//   } catch {
+//     return [{ text: textPayload }];
+//   }
+// }
 
-    if (Array.isArray(parsed?.chunks)) {
-      return parsed.chunks
-        .map((item: any) => normalizeRetrievedChunk(item))
-        .filter((item: RetrievedChunk | null): item is RetrievedChunk => Boolean(item));
-    }
+// function normalizeRetrievedChunk(value: any): RetrievedChunk | null {
+//   if (!value) {
+//     return null;
+//   }
 
-    const one = normalizeRetrievedChunk(parsed);
-    return one ? [one] : [];
-  } catch {
-    return [{ text: textPayload }];
-  }
-}
+//   if (typeof value === "string") {
+//     const text = value.trim();
+//     return text ? { text } : null;
+//   }
 
-function normalizeRetrievedChunk(value: any): RetrievedChunk | null {
-  if (!value) {
-    return null;
-  }
+//   if (typeof value !== "object") {
+//     const text = String(value).trim();
+//     return text ? { text } : null;
+//   }
 
-  if (typeof value === "string") {
-    const text = value.trim();
-    return text ? { text } : null;
-  }
+//   const text = String(
+//     value.text ?? value.content ?? value.snippet ?? value.chunk ?? ""
+//   ).trim();
 
-  if (typeof value !== "object") {
-    const text = String(value).trim();
-    return text ? { text } : null;
-  }
+//   if (!text) {
+//     return null;
+//   }
 
-  const text = String(
-    value.text ?? value.content ?? value.snippet ?? value.chunk ?? ""
-  ).trim();
-
-  if (!text) {
-    return null;
-  }
-
-  return {
-    title: value.title ?? value.name,
-    source: value.source ?? value.url ?? value.path,
-    text,
-  };
-}
+//   return {
+//     title: value.title ?? value.name,
+//     source: value.source ?? value.url ?? value.path,
+//     text,
+//   };
+// }
 
 function sanitizeTag(raw: string) {
   return raw
@@ -405,87 +365,87 @@ function buildTags(agentTag?: string) {
   return ["teams", "upload", `agent:${agentTag}`];
 }
 
-function buildMetadataFilter(agentTag?: string) {
-  if (!agentTag) {
-    return undefined;
-  }
+// function buildMetadataFilter(agentTag?: string) {
+//   if (!agentTag) {
+//     return undefined;
+//   }
 
-  return {
-    agent: { $eq: agentTag },
-  };
-}
+//   return {
+//     agent: { $eq: agentTag },
+//   };
+// }
 
-function buildRagContext(
-  conversationId: string,
-  userId?: string,
-  agentTag?: string,
-  context?: any
-): RagContext {
-  const tenantId =
-    context?.activity?.conversation?.tenantId ??
-    context?.activity?.channelData?.tenant?.id ??
-    context?.activity?.channelData?.tenantId;
+// function buildRagContext(
+//   conversationId: string,
+//   userId?: string,
+//   agentTag?: string,
+//   context?: any
+// ): RagContext {
+//   const tenantId =
+//     context?.activity?.conversation?.tenantId ??
+//     context?.activity?.channelData?.tenant?.id ??
+//     context?.activity?.channelData?.tenantId;
 
-  return {
-    agent: agentTag,
-    conversationId,
-    userId,
-    tenantId: typeof tenantId === "string" ? tenantId : undefined,
-    tags: buildTags(agentTag),
-  };
-}
+//   return {
+//     agent: agentTag,
+//     conversationId,
+//     userId,
+//     tenantId: typeof tenantId === "string" ? tenantId : undefined,
+//     tags: buildTags(agentTag),
+//   };
+// }
 
-function buildIngestArguments(documents: UploadedDocument[], ragContext: RagContext) {
-  const normalizedDocuments = documents.map((doc) => ({
-    documentId: doc.id,
-    title: doc.name,
-    contentType: doc.contentType,
-    url: doc.downloadUrl ?? doc.contentUrl,
-    source: "teams-attachment",
-    metadata: {
-      agent: ragContext.agent,
-      tags: ragContext.tags,
-      conversationId: ragContext.conversationId,
-      userId: ragContext.userId,
-      tenantId: ragContext.tenantId,
-    },
-  }));
+// function buildIngestArguments(documents: UploadedDocument[], ragContext: RagContext) {
+//   const normalizedDocuments = documents.map((doc) => ({
+//     documentId: doc.id,
+//     title: doc.name,
+//     contentType: doc.contentType,
+//     url: doc.downloadUrl ?? doc.contentUrl,
+//     source: "teams-attachment",
+//     metadata: {
+//       agent: ragContext.agent,
+//       tags: ragContext.tags,
+//       conversationId: ragContext.conversationId,
+//       userId: ragContext.userId,
+//       tenantId: ragContext.tenantId,
+//     },
+//   }));
 
-  return {
-    schemaVersion: "rag-v1",
-    operation: "ingest",
-    documents: normalizedDocuments,
-    context: ragContext,
+//   return {
+//     schemaVersion: "rag-v1",
+//     operation: "ingest",
+//     documents: normalizedDocuments,
+//     context: ragContext,
 
-    // Backward-compatible aliases for existing MCP tools.
-    agent: ragContext.agent,
-    metadata: {
-      source: "teams-attachment",
-      agent: ragContext.agent,
-      tags: ragContext.tags,
-    },
-    conversationId: ragContext.conversationId,
-    userId: ragContext.userId,
-  };
-}
+//     // Backward-compatible aliases for existing MCP tools.
+//     agent: ragContext.agent,
+//     metadata: {
+//       source: "teams-attachment",
+//       agent: ragContext.agent,
+//       tags: ragContext.tags,
+//     },
+//     conversationId: ragContext.conversationId,
+//     userId: ragContext.userId,
+//   };
+// }
 
-function buildSearchArguments(query: string, ragContext: RagContext) {
-  return {
-    schemaVersion: "rag-v1",
-    operation: "search",
-    query,
-    topK: 3,
-    context: ragContext,
-    filters: {
-      agent: ragContext.agent,
-      conversationId: ragContext.conversationId,
-      tenantId: ragContext.tenantId,
-    },
+// function buildSearchArguments(query: string, ragContext: RagContext) {
+//   return {
+//     schemaVersion: "rag-v1",
+//     operation: "search",
+//     query,
+//     topK: 3,
+//     context: ragContext,
+//     filters: {
+//       agent: ragContext.agent,
+//       conversationId: ragContext.conversationId,
+//       tenantId: ragContext.tenantId,
+//     },
 
-    // Backward-compatible aliases for existing MCP tools.
-    agent: ragContext.agent,
-    filter: buildMetadataFilter(ragContext.agent),
-    conversationId: ragContext.conversationId,
-    userId: ragContext.userId,
-  };
-}
+//     // Backward-compatible aliases for existing MCP tools.
+//     agent: ragContext.agent,
+//     filter: buildMetadataFilter(ragContext.agent),
+//     conversationId: ragContext.conversationId,
+//     userId: ragContext.userId,
+//   };
+// }

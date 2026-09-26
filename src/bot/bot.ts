@@ -3,10 +3,10 @@ import { handleMessage } from "./handlers";
 import { parseResponseContent } from "../runtime/responseFormat";
 import { createAgent } from "../agents/createAgent";
 import { DEFAULT_SYSTEM_PROMPT } from "../agents/defaultPrompt";
-import { bootstrap } from "../bootstrap/bootstrap";
-import { setBotRuntimeMode } from "../config/botRuntimeConfig";
+import { ensureDefaultModeBootstrap } from "../bootstrap/bootstrap";
+import { BotMode, getBotRuntimeConfig, setBotRuntimeMode } from "../config/botRuntimeConfig";
 
-export async function createMAFBot(startupMode?: string) {
+export async function createMAFBot(startupMode?: BotMode) {
 
   if (startupMode) {
     try {
@@ -16,20 +16,20 @@ export async function createMAFBot(startupMode?: string) {
     }
   }
 
-  // 1. BOOTSTRAP MCP for the tools FIRST
-  await bootstrap();
-
-  // 2. CREATE AGENT one per bot instance to maintain conversation state in-memory. 
-  // Note: In a real-world scenario you would have a more sophisticated bot that can use external storage
-  // For production scenarios, consider using an external store for conversation state and rehydrating agent instances per turn.
+  // Default mode is expensive and only needed when the bot is actually used in that mode,
+  // so we create the MCP toolchain and agent lazily on first default-mode interaction.
   let langgraph_reactagent: any = null;
-  langgraph_reactagent = createAgent();
-  
-  // 3. SYSTEM PROMPT
-  // const systemPrompt = buildSystemPrompt(getTools());
   const systemPrompt = DEFAULT_SYSTEM_PROMPT;
 
   return async (context: any) => {
+    const threadId = context?.activity?.conversation?.id ?? "default";
+    const runtimeConfig = getBotRuntimeConfig(threadId);
+
+    if (startupMode === BotMode.default && !langgraph_reactagent) {
+      await ensureDefaultModeBootstrap(runtimeConfig.mode);
+      langgraph_reactagent = createAgent();
+      console.log("[BOT] created default-mode agent on first use");
+    }
 
     // console.log("[BOT-HANDLER] ENTRY - activity type:", context?.activity?.type);
     // console.log("[BOT-HANDLER] User:", context?.activity?.from?.name, "ID:", context?.activity?.from?.id);

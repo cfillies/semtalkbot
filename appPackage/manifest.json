@@ -1,7 +1,7 @@
 {
     "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
     "manifestVersion": "1.29",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "id": "${{TEAMS_APP_ID}}",
     "developer": {
         "name": "Semtation GmbH",
@@ -14,8 +14,8 @@
         "outline": "outline.png"
     },
     "name": {
-        "short": "SemTalk Process Bot v3",
-        "full": "SemTalk Process Finder Bot v3"
+        "short": "SemTalk Process Bot v10",
+        "full": "SemTalk Process Finder Bot v10"
     },
     "description": {
         "short": "Make your business processes accessible via chat",
@@ -91,13 +91,13 @@
                         {
                             "name": "mode",
                             "title": "Mode",
-                            "description": "default, json, or debug",
+                            "description": "default, workflow, or debug",
                             "inputType": "text"
                         },
                         {
-                            "name": "definitionFile",
-                            "title": "BPMN Workflow (SemTalk Library)",
-                            "description": "Example: langgraph.json",
+                            "name": "model",
+                            "title": "Workflow (SemTalk Library)",
+                            "description": "Example: kitaanmeldung",
                             "inputType": "text"
                         }
                     ]

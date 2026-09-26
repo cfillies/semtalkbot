@@ -1,5 +1,5 @@
-import { resolvePrompt } from "../prompts/resolvePrompt";
-import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
+// import { resolvePrompt } from "../prompts/resolvePrompt";
+// import { buildRuntimePrompt } from "../agents/buildRuntimePrompt";
 import { getTools } from "../mcp/mcpToolsAdapter";
 import { createStreamingUpdater } from "../teams/streamingUpdater";
 import { createProcessStateGraph } from "../runtime/createStateGraph";
@@ -26,10 +26,11 @@ import {
 import {
   getBotRuntimeConfig,
   getSupportedBotModes,
-  setBotDefinitionFile,
-  setBotModelName,
+  // setBotDefinitionFile,
+  setBotWorkflow,
   setBotRuntimeMode,
   setDocumentHandlingMode,
+  BotMode,
 } from "../config/botRuntimeConfig";
 
 // -----------------------------------------------------
@@ -73,8 +74,7 @@ export async function handleMessage(
       "Bot runtime commands:",
       "- /bot config",
       "- /bot mode <default|json|debug>",
-      "- /bot model <definitionFile>",
-      "- /bot modelname <modelname>",
+      "- /bot workflow <workflow>",
       "- /bot stop",
       "",
       "Document handling commands:",
@@ -91,28 +91,22 @@ export async function handleMessage(
   const runtimeConfig = getBotRuntimeConfig(threadId);
   const mode = runtimeConfig.mode;
   const isstop = userText === "/bot stop"
-  const definitionFile = runtimeConfig.definitionFile;
-  const modelName = runtimeConfig.modelName
-  const tools = getTools();
-  const availableToolNames = new Set<string>(
-    tools
-      .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
-      .filter(Boolean)
-  );
-
-  console.log(`[TOOLS] ${tools.length} loaded`);
+  // const definitionFile = runtimeConfig.definitionFile;
+  const workflow = runtimeConfig.workflow;
+  // let tools: any[] = [];
+  // let availableToolNames: string[] = [];
 
   let resolvedUserPrompt = null;
+  resolvedUserPrompt = userText
+  // try {
+  //   resolvedUserPrompt = await resolvePrompt(userText);
 
-  try {
-    resolvedUserPrompt = await resolvePrompt(userText);
-
-    if (resolvedUserPrompt) {
-      console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
-    }
-  } catch (err) {
-    console.warn("[PROMPT] resolution failed", err);
-  }
+  //   if (resolvedUserPrompt) {
+  //     console.log("[USER PROMPT]", resolvedUserPrompt.description ?? "resolved");
+  //   }
+  // } catch (err) {
+  //   console.warn("[PROMPT] resolution failed", err);
+  // }
 
   const agentTag = resolveAgentTag(context, mode, resolvedUserPrompt);
 
@@ -138,8 +132,7 @@ export async function handleMessage(
         threadId,
         context.activity.from?.id,
         agentTag,
-        context,
-        availableToolNames
+        context
       );
     } catch (err) {
       console.error("[MESSAGE] Failed to ingest documents to RAG backend:", err);
@@ -160,8 +153,7 @@ export async function handleMessage(
         threadId,
         context.activity.from?.id,
         agentTag,
-        context,
-        availableToolNames
+        context
       );
     } catch (err) {
       console.error("[MESSAGE] Failed to retrieve document context:", err);
@@ -189,7 +181,7 @@ export async function handleMessage(
   // INVOKE PROCESS MANAGER FOR JSON/DEBUG MODES
   // ---------------------------------------------------
 
-  if (mode === "json" || mode === "debug") {
+  if (mode === BotMode.workflow || mode === BotMode.debug) {
     const resumeValue = extractResumeValue(context.activity.value);
     const streamer = await createStreamingUpdater(context);
 
@@ -206,10 +198,10 @@ export async function handleMessage(
       } catch (err) {
         // First turn, no previous state yet
       }
-
-      if (resumeValue !== null && await getProcessSession(threadId)) {
+      //  && await getProcessSession(threadId)
+      if (resumeValue !== null) {
         // Check if there's actually a pending interrupt waiting for this response
-        const sessionDetails = await getProcessDetails(threadId);
+        // const sessionDetails = await getProcessDetails(threadId);
         // const hasInterrupt = hasPendingUserInterrupt(sessionDetails?.state);
 
         // if (!hasInterrupt) {
@@ -221,51 +213,59 @@ export async function handleMessage(
         });
 
         // If stepProcess fails, retry with start
-        if (!invocationResult) {
-          await startProcess({
-            sessionId: threadId,
-            userQuery: groundedUserQuery,
-            debugStepper: mode === "debug",
-            definitionFile: definitionFile,
-            modelName: modelName,
-            connectToken,
-            messages: previousMessages,
-            env: previousEnv
-          });
-          invocationResult = await stepProcess(threadId, {
-            resume: resumeValue,
-            userQuery: groundedUserQuery,
-            // definitionFile: definition,
-            messages: previousMessages,
-            env: {},
-          });
-        }
-        // } else {
-        //   // No pending interrupt - just load current session state
-        //   // The interrupt was already handled internally by Process Manager
-        //   invocationResult = await getProcessDetails(threadId);
+        // if (!invocationResult) {
+        //   await startProcess({
+        //     sessionId: threadId,
+        //     userQuery: groundedUserQuery,
+        //     debugStepper: mode === "debug",
+        //     definitionFile: definitionFile,
+        //     modelName: modelName,
+        //     connectToken,
+        //     messages: previousMessages,
+        //     env: previousEnv
+        //   });
+        //   invocationResult = await stepProcess(threadId, {
+        //     resume: resumeValue,
+        //     userQuery: groundedUserQuery,
+        //     // definitionFile: definition,
+        //     messages: previousMessages,
+        //     env: {},
+        //   });
         // }
-      } else if (await getProcessSession(threadId)) {
-        if (isstop) {
-          invocationResult = await stopProcess(threadId);
-        } else {
-          invocationResult = await stepProcess(threadId, {
-            userQuery: groundedUserQuery,
-            // definitionFile: definition,
-            messages: previousMessages,
-            env: previousEnv,
-          });
-        }
+        //  } else if (await getProcessSession(threadId)) {
+        //   if (isstop) {
+        //     invocationResult = await stopProcess(threadId);
+        //   } else {
+        //     invocationResult = await stepProcess(threadId, {
+        //       userQuery: groundedUserQuery,
+        //       // definitionFile: definition,
+        //       messages: previousMessages,
+        //       env: previousEnv,
+        //     });
+        //   }
       } else {
+        let name = workflow + "-" + threadId;
         invocationResult = await startProcess({
           sessionId: threadId,
           userQuery: groundedUserQuery,
           debugStepper: mode === "debug",
           // definitionFile: definition,
-          modelName: modelName,
+          modelName: workflow,
           connectToken,
           messages: previousMessages,
-          env: previousEnv
+          env: previousEnv,
+          name: name,
+          recordHistory: false,
+          debugBreakpoints: [],
+          keepsession: false,
+          ischatmode: true,
+          theme: {},
+          inputModerator: false,
+          inputredflags: [],
+          outputModerator: false,
+          outputredflags: [],
+          language: "de",
+          disableDataCollection: true
         });
       }
 
@@ -273,8 +273,9 @@ export async function handleMessage(
         throw new Error("Process session unavailable for this conversation.");
       }
 
-      const processDetails = await getProcessDetails(threadId);
-      const graphState = processDetails?.state ?? null;
+      // const processDetails = await getProcessDetails(threadId);
+      // const graphState = processDetails?.state ?? null;
+      const graphState = invocationResult.state;
 
       const interruptPayload = getUserInterruptPayloadFromSummary(graphState);
       if (interruptPayload) {
@@ -309,9 +310,16 @@ export async function handleMessage(
         return;
       }
 
-      let content =
-        invocationResult?.result?.finalResponse ??
-        "Sorry, I did not receive a response from the agent.";
+      let content = "";
+
+      if (invocationResult?.result?.finalResponse) {
+        content = invocationResult?.result?.finalResponse;
+      }
+      if (content.length == 0 && invocationResult.error) {
+        content = JSON.stringify(invocationResult.error);
+      } if (content.length == 0 && invocationResult.result) {
+        content = JSON.stringify(invocationResult.result);
+      }
       content = normalizeFinalContent(content);
 
       if (invocationResult?.result?.processVariables) {
@@ -359,7 +367,17 @@ export async function handleMessage(
 
     switch (mode) {
       case "default": {
-        runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, groundedUserQuery);
+        // tools = getTools();
+        // availableToolNames = Array.from(
+        //   new Set<string>(
+        //     tools
+        //       .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
+        //       .filter(Boolean)
+        //   )
+        // );
+        // console.log(`[TOOLS] ${tools.length} loaded`);
+
+        // runtimePrompt = buildRuntimePrompt(resolvedUserPrompt, tools, groundedUserQuery);
         runtimePrompt = appendDocumentContext(runtimePrompt, retrievedContext);
 
         agentGraph = createProcessStateGraph(langchainreactagent, runtimePrompt, threadId);
@@ -491,14 +509,14 @@ function handleComposeExtensionInvoke(context: any): any | null {
 
   if (invokeName === "composeExtension/submitAction" && commandId === "botConfig") {
     const mode = String(value?.data?.mode ?? "").trim();
-    const definitionFile = String(value?.data?.definitionFile ?? "").trim();
+    const model = String(value?.data?.model ?? "").trim();
 
     const lines = [
       "Bot runtime config commands:",
       mode ? `/bot mode ${mode}` : "Use /bot mode <default|json|debug>",
-      definitionFile
-        ? `/bot model ${definitionFile}`
-        : "Use /bot model <definitionFile>",
+      model
+        ? `/bot model ${model}`
+        : "Use /bot model <model>",
       "Check current settings: /bot config",
     ];
 
@@ -582,7 +600,7 @@ function toThumbnailAttachment(title: string, subtitle: string, text: string) {
   };
 }
 
-function handleBotRuntimeCommand(userText: string, threadId?: string): string | null {
+function handleBotRuntimeCommand(userText: string, threadId: string): string | null {
   const text = String(userText ?? "").trim();
   if (!text.startsWith("/bot")) {
     return null;
@@ -597,9 +615,8 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
     return [
       "Bot runtime commands:",
       "- /bot config",
-      "- /bot mode <default|json|debug>",
-      "- /bot modelname <modelname>",
-      "- /bot model <definitionFile>",
+      "- /bot mode <default|workflow|debug>",
+      "- /bot workflow <workflow>",
       "- /bot stop",
       "",
       "Document handling commands:",
@@ -612,7 +629,7 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
     const current = getBotRuntimeConfig(threadId);
     return [
       `mode: ${current.mode}`,
-      `definitionFile: ${current.definitionFile}`,
+      `workflow: ${current.workflow}`,
       `supportedModes: ${getSupportedBotModes().join(", ")}`,
     ].join("\n");
   }
@@ -620,7 +637,9 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
   if (command === "mode") {
     const nextMode = parts[2];
     if (!nextMode) {
-      return `Missing mode. Use: /bot mode <${getSupportedBotModes().join("|")}>`;
+      const current = getBotRuntimeConfig(threadId);
+      return current.mode;
+      // return `Missing mode. Use: /bot mode <${getSupportedBotModes().join("|")}>`;
     }
 
     try {
@@ -631,29 +650,33 @@ function handleBotRuntimeCommand(userText: string, threadId?: string): string | 
     }
   }
 
-  if (command === "model") {
+  // if (command === "model") {
+  //   const value = parts.slice(2).join(" ").trim();
+  //   if (!value) {
+  //     return "Missing model path/name. Use: /bot model <definitionFile>";
+  //   }
+
+  //   try {
+  //     const updated = setBotDefinitionFile(value, threadId);
+  //     return `Bot definition file updated to: ${updated}`;
+  //   } catch (err: any) {
+  //     return String(err?.message ?? err);
+  //   }
+  // }
+
+  if (command === "workflow") {
     const value = parts.slice(2).join(" ").trim();
     if (!value) {
-      return "Missing model path/name. Use: /bot model <definitionFile>";
+      const current = getBotRuntimeConfig(threadId);
+      return current.workflow;
     }
 
     try {
-      const updated = setBotDefinitionFile(value, threadId);
-      return `Bot definition file updated to: ${updated}`;
-    } catch (err: any) {
-      return String(err?.message ?? err);
-    }
-  }
+      const updated = setBotWorkflow(value, threadId);
+      delete globalMsg[threadId];
+      delete globalEnv[threadId];
 
-  if (command === "modelname") {
-    const value = parts.slice(2).join(" ").trim();
-    if (!value) {
-      return "Missing model name. Use: /bot modelname <modelname>";
-    }
-
-    try {
-      const updated = setBotModelName(value, threadId);
-      return `Bot modelname updated to: ${updated}`;
+      return `Bot workflow updated to: ${updated}`;
     } catch (err: any) {
       return String(err?.message ?? err);
     }
@@ -837,9 +860,10 @@ async function resolveProcessConnectToken(context: any): Promise<string | undefi
 }
 
 function isProcessManagerGraphCallsEnabled(): boolean {
-  return parseBooleanEnv(
-    process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS
-  );
+  return true;
+  // return parseBooleanEnv(
+  //   process.env.PROCESS_MANAGER_ENABLE_GRAPH_CALLS
+  // );
 }
 
 function parseBooleanEnv(value: string | undefined): boolean {

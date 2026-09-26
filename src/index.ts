@@ -2,11 +2,12 @@ import "./proxy";
 import { createMAFBot as createMAFBot } from "./bot/bot";
 import { startServer } from "@microsoft/agents-hosting-express";
 import { AgentApplicationBuilder as MAFAgentApplicationBuilder } from "@microsoft/agents-hosting";
+import { BotMode } from "./config/botRuntimeConfig";
 
 
 async function main() {
   // 4. BOT WRAPPER
-  const botHandler = await createMAFBot("default");
+  const botHandler = await createMAFBot(BotMode.workflow);
 
   const mafApp = new MAFAgentApplicationBuilder().build();
 
@@ -14,7 +15,7 @@ async function main() {
   mafApp.onActivity("invoke", botHandler);
 
   mafApp.onConversationUpdate("membersAdded", async (ctx) => {
-    await ctx.sendActivity("Hello");
+    await ctx.sendActivity("Moin");
   });
 
   // Debug: log which instance we're running

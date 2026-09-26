@@ -75,7 +75,7 @@ export async function createStreamingUpdater(
   if (!isCopilot) {
     try {
       console.log("[STREAM] attempting to send initial status message");
-      sent = await context.sendActivity("🧠 Working...");
+      sent = await context.sendActivity("🧠 Moment...");
       console.log("[STREAM] initial status sent:", sent?.id);
     } catch (err) {
       console.error("[STREAM] send initial status FAILED:", err);
