@@ -602,16 +602,16 @@ function toThumbnailAttachment(title: string, subtitle: string, text: string) {
 
 function handleBotRuntimeCommand(userText: string, threadId: string): string | null {
   const text = String(userText ?? "").trim();
-  if (!text.startsWith("/bot")) {
+  if (!text.startsWith("/b") ) {
     return null;
   }
-  if (text.startsWith("/bot stop")) {
+  if (text.startsWith("/bot stop") || text.startsWith("/b s")) {
     return null;
   }
   const parts = text.split(/\s+/).filter(Boolean);
   const command = (parts[1] ?? "help").toLowerCase();
 
-  if (command === "help") {
+  if (command.startsWith("h")) {
     return [
       "Bot runtime commands:",
       "- /bot config",
@@ -625,7 +625,7 @@ function handleBotRuntimeCommand(userText: string, threadId: string): string | n
     ].join("\n");
   }
 
-  if (command === "config") {
+  if (command.startsWith("c") || text.startsWith("/c")) {
     const current = getBotRuntimeConfig(threadId);
     return [
       `mode: ${current.mode}`,
@@ -634,7 +634,22 @@ function handleBotRuntimeCommand(userText: string, threadId: string): string | n
     ].join("\n");
   }
 
-  if (command === "mode") {
+  if (text.startsWith("/m")) {
+    const nextMode = parts[1];
+    if (!nextMode) {
+      const current = getBotRuntimeConfig(threadId);
+      return current.mode;
+      // return `Missing mode. Use: /bot mode <${getSupportedBotModes().join("|")}>`;
+    }
+
+    try {
+      const updated = setBotRuntimeMode(nextMode, threadId);
+      return `Bot mode updated to: ${updated}`;
+    } catch (err: any) {
+      return String(err?.message ?? err);
+    }
+  }
+  if (command.startsWith("m")) {
     const nextMode = parts[2];
     if (!nextMode) {
       const current = getBotRuntimeConfig(threadId);
@@ -663,8 +678,25 @@ function handleBotRuntimeCommand(userText: string, threadId: string): string | n
   //     return String(err?.message ?? err);
   //   }
   // }
+  if (text.startsWith("/w")) {
+    const value = parts.slice(1).join(" ").trim();
+    if (!value) {
+      const current = getBotRuntimeConfig(threadId);
+      return current.workflow;
+    }
 
-  if (command === "workflow") {
+    try {
+      const updated = setBotWorkflow(value, threadId);
+      delete globalMsg[threadId];
+      delete globalEnv[threadId];
+
+      return `Bot workflow updated to: ${updated}`;
+    } catch (err: any) {
+      return String(err?.message ?? err);
+    }
+  }
+
+  if (command.startsWith("w")) {
     const value = parts.slice(2).join(" ").trim();
     if (!value) {
       const current = getBotRuntimeConfig(threadId);
