@@ -5,6 +5,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   build:
@@ -28,3 +33,42 @@ jobs:
 
       - name: Build status
         run: echo "Build succeeded for PR validation"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    env:
+      AZURE_CLIENT_ID: 57866b10-4540-4432-ab01-8ffc4f1c94ad
+      AZURE_TENANT_ID: b4003761-08c8-4847-91b4-47bc01e6031c
+      AZURE_SUBSCRIPTION_ID: 1343ace7-ec1e-4a06-83df-323cf7a56188
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build app
+        run: npm run build
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: bot44e7fd
+          package: .
