@@ -41,7 +41,7 @@ jobs:
 
     env:
       AZURE_CLIENT_ID: 57866b10-4540-4432-ab01-8ffc4f1c94ad
-      AZURE_TENANT_ID: e6aa0f5f-ec60-485d-8766-f6bcabea9053
+      AZURE_TENANT_ID: b4003761-08c8-4847-91b4-47bc01e6031c
       AZURE_SUBSCRIPTION_ID: 1343ace7-ec1e-4a06-83df-323cf7a56188
 
     steps:
