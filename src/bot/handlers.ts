@@ -602,7 +602,8 @@ function toThumbnailAttachment(title: string, subtitle: string, text: string) {
 
 function handleBotRuntimeCommand(userText: string, threadId: string): string | null {
   const text = String(userText ?? "").trim();
-  if (!text.startsWith("/b") ) {
+  if (!text.startsWith("/bot") || text.startsWith("/model") || text.startsWith("/mdel") ||
+    text.startsWith("/workflow") || text.startsWith("/wrkflow")) {
     return null;
   }
   if (text.startsWith("/bot stop") || text.startsWith("/b s")) {
@@ -634,7 +635,7 @@ function handleBotRuntimeCommand(userText: string, threadId: string): string | n
     ].join("\n");
   }
 
-  if (text.startsWith("/m")) {
+  if (text.startsWith("/model") || text.startsWith("/mdel")) {
     const nextMode = parts[1];
     if (!nextMode) {
       const current = getBotRuntimeConfig(threadId);
@@ -678,7 +679,7 @@ function handleBotRuntimeCommand(userText: string, threadId: string): string | n
   //     return String(err?.message ?? err);
   //   }
   // }
-  if (text.startsWith("/w")) {
+  if (text.startsWith("/workflow") || text.startsWith("/wrkflow")) {
     const value = parts.slice(1).join(" ").trim();
     if (!value) {
       const current = getBotRuntimeConfig(threadId);
