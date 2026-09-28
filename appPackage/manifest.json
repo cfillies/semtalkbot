@@ -1,7 +1,7 @@
 {
     "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
     "manifestVersion": "1.29",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "id": "${{TEAMS_APP_ID}}",
     "developer": {
         "name": "Semtation GmbH",
@@ -14,12 +14,12 @@
         "outline": "outline.png"
     },
     "name": {
-        "short": "SemTalk Process Bot v10",
-        "full": "SemTalk Process Finder Bot v10"
+        "short": "SemTalk Process Bot v11",
+        "full": "SemTalk Workflow & Process Finder Bot v11"
     },
     "description": {
-        "short": "Make your business processes accessible via chat",
-        "full": "The SemTalk Process Bot helps you find and understand business processes stored in your SemTalk Process Repository directly from Microsoft Teams."
+        "short": "Make your business processes accessible and executable via chat",
+        "full": "The SemTalk Process Bot helps you find, understand and execute business processes stored in your SemTalk Process Repository directly from Microsoft Teams."
     },
     "accentColor": "#FFFFFF",
     "supportsChannelFeatures": "tier1",
@@ -41,15 +41,25 @@
             ],
             "supportsFiles": true,
             "isNotificationOnly": false,
-            "supportsTargetedMessages": false,
+            "supportsTargetedMessages": true,
             "commandLists": [
                 {
                     "scopes": [
                         "personal",
                         "groupChat"
                     ],
-                    "triggers": ["mention"],
+                    "triggers": [
+                        "mention"
+                    ],
                     "commands": [
+                        {
+                            "title": "SemTalk Bot Config",
+                            "description": "/bot config"
+                        },
+                        {
+                            "title": "SemTalk Bot Workflow",
+                            "description": "/bot workflow kitaanmeldung"
+                        },
                         {
                             "title": "Find business processes",
                             "description": "Return a list of Process descriptions for a matching a Process name"
