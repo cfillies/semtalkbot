@@ -4,10 +4,9 @@ import { startServer } from "@microsoft/agents-hosting-express";
 import { AgentApplicationBuilder as MAFAgentApplicationBuilder } from "@microsoft/agents-hosting";
 import { BotMode } from "./config/botRuntimeConfig";
 
-
 async function main() {
   // 4. BOT WRAPPER
-  const botHandler = await createMAFBot(BotMode.workflow);
+  const botHandler = await createMAFBot(BotMode.default);
 
   const mafApp = new MAFAgentApplicationBuilder().build();
 

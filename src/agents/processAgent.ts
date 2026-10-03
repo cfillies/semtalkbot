@@ -4,6 +4,7 @@ import { RuntimeStateType } from "../runtime/state";
 export function createProcessAgentNode(
   agent: any,
   systemPrompt: string,
+  userQuery: string,
   threadId: string
 ) {
   return async function processAgentNode(
@@ -17,7 +18,7 @@ export function createProcessAgentNode(
     const messages = [
       new SystemMessage(systemPrompt),
       ...previousMessages,
-      new HumanMessage(state.userQuery ?? "")
+      new HumanMessage(userQuery)
     ];
 
     const result = await agent.invoke(

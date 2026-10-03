@@ -14,11 +14,12 @@ const inMemoryCheckpointer = new MemorySaver();
 export function createProcessStateGraph(
   agent: any,
   systemPrompt: string,
+  userQuery: string,
   threadId: string) {
   const graph = new StateGraph(RuntimeState)
     .addNode(
       "processAgent",
-      createProcessAgentNode(agent, systemPrompt, threadId)
+      createProcessAgentNode(agent, systemPrompt, userQuery,threadId)
     )
     .addNode("aggregate", aggregateNode)
     .addEdge(START, "processAgent")
