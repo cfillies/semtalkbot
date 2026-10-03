@@ -78,7 +78,7 @@ const config = {
   scopes: "ChatMessage.Send, Chat.ReadWrite, User.Read, Mail.Send, email, openid, profile, offline_access, Chat.Read, Chat.ReadWrite, ChatMessage.Send".split(', '),
   defaultscope: ["https://graph.microsoft.com/.default"],
   graphscopes: "ChatMessage.Send, Chat.ReadWrite, Mail.Send, email, openid, profile, Files.ReadWrite.All, offline_access, Sites.Manage.All, Sites.Read.All, Sites.ReadWrite.All, Tasks.ReadWrite, Team.Create, Team.ReadBasic.All, Directory.Read.All, User.Read".split(', '),
-  clientSecret: eclientSecret ? eclientSecret : "--O8Q~xtmwI63DsOzWuhNMCUf0RKQbx4cXbccaw7",
+  clientSecret: eclientSecret ? eclientSecret : "",
   authorityHost: eauthorityHost ? eauthorityHost : "https://login.microsoftonline.com/common",
   sharepointsite: esharepointsite ? esharepointsite : "/sites/semtalk.sharepoint.com:/sites/Modellierung:/",
   semtalkdocuments: esemtalkdocuments ? esemtalkdocuments : "SDX",
