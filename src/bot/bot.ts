@@ -25,7 +25,7 @@ export async function createMAFBot(startupMode?: BotMode) {
     const threadId = context?.activity?.conversation?.id ?? "default";
     const runtimeConfig = getBotRuntimeConfig(threadId);
 
-    if (startupMode === BotMode.default && !langgraph_reactagent) {
+    if (!langgraph_reactagent && runtimeConfig.mode === BotMode.default) {
       await ensureDefaultModeBootstrap(runtimeConfig.mode);
       langgraph_reactagent = createAgent();
       console.log("[BOT] created default-mode agent on first use");

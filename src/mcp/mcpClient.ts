@@ -40,21 +40,21 @@ export async function initMcpClients() {
 function getMcpUrls() {
   // return [
   //   "http://localhost:7073/runtime/webhooks/mcp"];
-  const mcpUrls = process.env.MCP_URLS;
-  if (mcpUrls?.trim()) {
-    const parsed = mcpUrls
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
+  // const mcpUrls = process.env.MCP_URLS;
+  // if (mcpUrls?.trim()) {
+  //   const parsed = mcpUrls
+  //     .split(",")
+  //     .map((entry) => entry.trim())
+  //     .filter(Boolean);
 
-    if (parsed.length) {
-      return parsed;
-    }
-  }
+  //   if (parsed.length) {
+  //     return parsed;
+  //   }
+  // }
 
-  if (process.env.MCP_URL?.trim()) {
-    return [process.env.MCP_URL.trim()];
-  }
+  // if (process.env.MCP_URL?.trim()) {
+  //   return [process.env.MCP_URL.trim()];
+  // }
 
   return [
     "https://semaiservice26.azurewebsites.net/runtime/webhooks/mcp" +

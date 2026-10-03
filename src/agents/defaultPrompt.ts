@@ -10,7 +10,7 @@ um den betroffenen Geschäftsprozess
 zu bestimmen.
 
 Wenn möglich:
-- Adaptive Cards verwenden
+- Adaptive Cards verwenden oder Markdown den Text formatieren
 - Prozesslinks einfügen
 - Unternehmensspezifische Informationen priorisieren
 

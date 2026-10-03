@@ -32,6 +32,9 @@ import {
   setDocumentHandlingMode,
   BotMode,
 } from "../config/botRuntimeConfig";
+import { PublicClientApplication, IPublicClientApplication } from "@azure/msal-browser";
+import { msalConfig } from "../authConfig";
+import config from "../config";
 
 // -----------------------------------------------------
 // Main Bot Message Handler
@@ -122,7 +125,7 @@ export async function handleMessage(
   }
 
   const uploadedDocuments = collectUploadedDocuments(context.activity);
-  const connectToken = await resolveProcessConnectToken(context);
+  let connectToken = await resolveProcessConnectToken(context);
 
   if (runtimeConfig.documentHandlingMode === "rag" && uploadedDocuments.length > 0) {
     console.log(`[MESSAGE] Processing ${uploadedDocuments.length} uploaded document(s) in RAG mode - sending to backend`);
@@ -454,13 +457,13 @@ export async function handleMessage(
         ].join(" ");
       }
 
-      console.error("[AGENT] invoke failed", err);
+      console.error("[AGENT] invoke failed", (err as Error).message);
       try {
         await streamer.complete();
       } catch (streamError) {
         console.warn("[STREAMER] complete failed", streamError);
       }
-      return "Sorry, I encountered an internal error while generating the response. Please try again.";
+      return (err as Error).message; //"Sorry, I encountered an internal error while generating the response. Please try again.";
     } finally {
       // Reset document mode if it was overridden by /rag command
       if (ragModeOverride) {
@@ -878,7 +881,12 @@ async function resolveProcessConnectToken(context: any): Promise<string | undefi
     return undefined;
   }
 
-  const ssoToken = extractSsoToken(context);
+  let ssoToken = extractSsoToken(context);
+  if (!ssoToken) {
+    ssoToken = await getMsalAccessToken(config.scopes);
+  }
+
+
   if (!ssoToken) {
     return undefined;
   }
@@ -902,6 +910,40 @@ function isProcessManagerGraphCallsEnabled(): boolean {
 function parseBooleanEnv(value: string | undefined): boolean {
   const normalized = String(value ?? "").trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+}
+
+async function getMsalAccessToken(scopes: string[]): Promise<string | null> {
+  try {
+    const msalInstance: IPublicClientApplication = new PublicClientApplication(msalConfig);
+    const accounts = msalInstance.getAllAccounts();
+
+    if (accounts.length === 0) {
+      // No cached account, try silent flow first
+      try {
+        const response = await msalInstance.acquireTokenSilent({
+          scopes: scopes,
+        });
+        return response.accessToken;
+      } catch (err) {
+        // Silent flow failed, use popup
+        const response = await msalInstance.acquireTokenPopup({
+          scopes: scopes,
+        });
+        return response.accessToken;
+      }
+    }
+
+    // Use existing account
+    msalInstance.setActiveAccount(accounts[0]);
+    const response = await msalInstance.acquireTokenSilent({
+      scopes: scopes,
+      account: accounts[0],
+    });
+    return response.accessToken;
+  } catch (err: any) {
+    console.warn("Failed to acquire token via MSAL:", err.message);
+    return null;
+  }
 }
 
 function extractSsoToken(context: any): string | null {
